@@ -1,0 +1,103 @@
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+} from '@aws-sdk/client-bedrock-runtime'
+
+// --- verified model ids (AWS Bedrock docs, checked 2026-07) ---
+// Titan Text Embeddings v2: amazon.titan-embed-text-v2:0 (dims 256|512|1024).
+//   We use 512 — a good quality/size balance; ~2KB per note as JSON, far under
+//   DynamoDB's 400KB item limit.
+// Claude Haiku 4.5: base id anthropic.claude-haiku-4-5-20251001-v1:0. Newer
+//   Claude models are on-demand only via a cross-region *inference profile*, so
+//   we invoke the US geo profile us.anthropic.claude-haiku-4-5-20251001-v1:0.
+export const TITAN_EMBED_MODEL_ID = 'amazon.titan-embed-text-v2:0'
+export const EMBED_DIMENSIONS = 512
+export const HAIKU_MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
+
+const client = new BedrockRuntimeClient({})
+
+/**
+ * Embed text with Titan v2. Throws on any Bedrock error (incl. AccessDenied
+ * when model access isn't enabled) — callers decide whether to degrade.
+ */
+export async function embedText(text: string): Promise<number[]> {
+  const res = await client.send(
+    new InvokeModelCommand({
+      modelId: TITAN_EMBED_MODEL_ID,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify({
+        inputText: text,
+        dimensions: EMBED_DIMENSIONS,
+        normalize: true,
+      }),
+    }),
+  )
+  const parsed = JSON.parse(new TextDecoder().decode(res.body)) as {
+    embedding?: number[]
+  }
+  if (!Array.isArray(parsed.embedding)) {
+    throw new Error('titan: no embedding in response')
+  }
+  return parsed.embedding
+}
+
+export interface NarrationInput {
+  targetName: string
+  /** Top candidate bottles the structured/text layer already surfaced. */
+  candidates: Array<{ bottleId: string; name: string; note?: string }>
+  /** The user's highest-rated tasting notes, as short context. */
+  highlights: string[]
+}
+
+/**
+ * Ask Haiku to pick and explain 2-3 recommendations from the candidate set.
+ * Returns prose narration. Throws on any Bedrock error — callers degrade.
+ */
+export async function narrate(input: NarrationInput): Promise<string> {
+  const candidateLines = input.candidates
+    .map(
+      (c, i) =>
+        `${i + 1}. ${c.name} (id: ${c.bottleId})${c.note ? ` — tasting note: ${c.note}` : ''}`,
+    )
+    .join('\n')
+  const highlightBlock =
+    input.highlights.length > 0
+      ? `\n\nThe drinker's favorite tasting notes so far:\n${input.highlights
+          .map((h) => `- ${h}`)
+          .join('\n')}`
+      : ''
+
+  const prompt = `You are a whiskey and wine sommelier helping someone find their next bottle.
+
+They just looked at: ${input.targetName}
+
+Here are similar bottles already ranked for them:
+${candidateLines}${highlightBlock}
+
+Pick the 2-3 best next bottles from that list. For each, give one tight, concrete sentence on why it suits them, referencing flavor when you can. Be specific and warm, not flowery. Do not invent bottles that aren't in the list. Reply in plain prose, no markdown, under 120 words total.`
+
+  const res = await client.send(
+    new InvokeModelCommand({
+      modelId: HAIKU_MODEL_ID,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify({
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: 400,
+        temperature: 0.7,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    }),
+  )
+  const parsed = JSON.parse(new TextDecoder().decode(res.body)) as {
+    content?: Array<{ type: string; text?: string }>
+  }
+  const text = parsed.content
+    ?.filter((b) => b.type === 'text')
+    .map((b) => b.text ?? '')
+    .join('')
+    .trim()
+  if (!text) throw new Error('haiku: empty narration')
+  return text
+}
