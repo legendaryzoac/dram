@@ -55,13 +55,18 @@ export default function RecommendationsPanel({
   const [result, setResult] = useState<RecommendationResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // No reset-in-effect: the panel is remounted (keyed) whenever the target
+  // bottle or its notes change, so mount state is already blank.
   useEffect(() => {
     let live = true
-    setResult(null)
-    setError(null)
     getApi()
       .getRecommendations(bottleId)
-      .then((r) => live && setResult(r))
+      .then((r) => {
+        if (live) {
+          setResult(r)
+          setError(null)
+        }
+      })
       .catch((e) => live && setError(e.message))
     return () => {
       live = false

@@ -75,14 +75,6 @@ export default function BottleList({ family, onRequireAuth }: Props) {
     }
   }, [])
 
-  // Reset filters when hopping between the cabinet and the coffee bar — the
-  // vocabularies don't overlap.
-  useEffect(() => {
-    setQuery('')
-    setType('all')
-    setRegion('all')
-  }, [family])
-
   const bottles = useMemo(
     () => (all ? all.filter((b) => familyOf(b.type) === family) : null),
     [all, family],

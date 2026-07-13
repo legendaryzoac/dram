@@ -57,7 +57,15 @@ function Routed({ onRequireAuth }: { onRequireAuth: () => void }) {
       return <BottleForm key={`edit-${route.id}`} editId={route.id} />
     case 'list':
     default:
-      return <BottleList family={route.family} onRequireAuth={onRequireAuth} />
+      // Keyed by family so hopping between the cabinet and the coffee bar
+      // resets search + filters (their vocabularies don't overlap).
+      return (
+        <BottleList
+          key={route.family}
+          family={route.family}
+          onRequireAuth={onRequireAuth}
+        />
+      )
   }
 }
 

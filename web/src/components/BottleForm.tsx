@@ -61,6 +61,19 @@ export default function BottleForm({ editId, initialFamily }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  function hydrate(b: Bottle) {
+    setName(b.name)
+    setProducer(b.producer)
+    setRegion(b.region)
+    setType(b.type)
+    setGrape(b.grape ?? '')
+    setStyle(b.style ?? '')
+    setRoast(b.roast ?? '')
+    setProcess(b.process ?? '')
+    setAbv(String(b.abv))
+    setPrice(b.price == null ? '' : String(b.price))
+  }
+
   // Prefill when editing.
   useEffect(() => {
     if (!editId) return
@@ -82,19 +95,6 @@ export default function BottleForm({ editId, initialFamily }: Props) {
       live = false
     }
   }, [editId])
-
-  function hydrate(b: Bottle) {
-    setName(b.name)
-    setProducer(b.producer)
-    setRegion(b.region)
-    setType(b.type)
-    setGrape(b.grape ?? '')
-    setStyle(b.style ?? '')
-    setRoast(b.roast ?? '')
-    setProcess(b.process ?? '')
-    setAbv(String(b.abv))
-    setPrice(b.price == null ? '' : String(b.price))
-  }
 
   const coffee = isCoffee(type)
 

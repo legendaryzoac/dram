@@ -12,9 +12,10 @@ import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf, isCoffee } from '../lib/types'
 import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
+import { NOTE_FIELD_LABELS } from '../lib/noteFields'
 import RadarChart from './RadarChart'
 import RecommendationsPanel from './RecommendationsPanel'
-import NoteForm, { NOTE_FIELD_LABELS } from './NoteForm'
+import NoteForm from './NoteForm'
 import {
   Panel,
   RatingBadge,
@@ -40,14 +41,19 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
   const [reloadKey, setReloadKey] = useState(0)
 
   // Liveness-guarded like the other screens: a slow response for a previous
-  // bottle must not clobber the one currently shown.
+  // fetch must not clobber the one currently shown. No reset-in-effect: the
+  // component is keyed by id, and a reloadKey refetch keeps the current data
+  // on screen until the fresh copy lands.
   useEffect(() => {
     let live = true
-    setData(null)
-    setError(null)
     getApi()
       .getBottle(id)
-      .then((d) => live && setData(d))
+      .then((d) => {
+        if (live) {
+          setData(d)
+          setError(null)
+        }
+      })
       .catch((e) => live && setError(e.message))
     return () => {
       live = false

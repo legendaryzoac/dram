@@ -10,6 +10,7 @@ import { useState } from 'react'
 import type { FlavorTags, NewNoteInput } from '../lib/types'
 import { EMPTY_FLAVOR, FLAVOR_AXES, isCoffee } from '../lib/types'
 import { getApi } from '../lib/api'
+import { NOTE_FIELD_LABELS } from '../lib/noteFields'
 import { useAuth } from './AuthContext'
 import RadarChart from './RadarChart'
 import {
@@ -19,26 +20,6 @@ import {
   labelClass,
   ErrorNote,
 } from './ui'
-
-/** Display labels + placeholders for the three prose fields, per family. */
-export const NOTE_FIELD_LABELS = {
-  alcohol: {
-    nose: 'Nose',
-    palate: 'Palate',
-    finish: 'Finish',
-    nosePh: 'What do you smell? Citrus, smoke, honey…',
-    palatePh: 'How does it taste? Body, sweetness, spice…',
-    finishPh: 'How does it end? Length, warmth, aftertaste…',
-  },
-  coffee: {
-    nose: 'Aroma',
-    palate: 'Flavor',
-    finish: 'Aftertaste',
-    nosePh: 'What do you smell? Florals, berries, cocoa…',
-    palatePh: 'How does it taste? Sweetness, acidity, body…',
-    finishPh: 'How does it linger? Clean, syrupy, drying…',
-  },
-} as const
 
 interface Props {
   bottleId: string
