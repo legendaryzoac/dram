@@ -1,8 +1,14 @@
-# dram — whiskey/wine tasting log + recommender
+# dram — whisky / wine / coffee tasting log + recommender
 
 A personal tasting log with a layered recommender, live at **dram.zackwithers.com**
 *(once deployed)*. Log bottles and tasting notes from your phone; get ranked "bottles
 like this" recommendations that get smarter as you add notes.
+
+The cabinet covers whisky (scotch / bourbon / rye / Irish), agave (tequila / mezcal),
+rum, gin, absinthe, brandy / cognac, and wine; a sibling **coffee tab** (`#/coffee`)
+shares the same corpus, eight tasting axes, and recommender. Recommendations rank
+within the target's family and also surface **"across the aisle"** picks — which
+coffees echo a wine's profile, and vice versa.
 
 Sibling to [interp](https://interp.zackwithers.com) and the
 [adversarial playground](https://playground.zackwithers.com) — same S3 + CloudFront +
@@ -22,10 +28,11 @@ serverless backend.
 
 ## Recommender layers (ship in order)
 
-1. **Structured** — feature-vector each bottle (region, type, flavor tags, ABV) → cosine
-   against your highly-rated bottles. Always works, no Bedrock needed.
+1. **Structured** — feature-vector each bottle (region, type, 8 flavor axes, ABV) →
+   cosine against your highly-rated bottles. Always works, no Bedrock needed.
 2. **Note-text** — Titan embeddings of the free-text nose/palate/finish → similarity on
-   what a bottle actually tastes like, not just its metadata.
+   what a bottle actually tastes like, not just its metadata. Being metadata-blind,
+   this is also the layer that bridges coffee ↔ alcohol best.
 3. **Narrated** — Claude Haiku reasons over tasting history and explains 2–3 next picks.
 
 ## Workspaces

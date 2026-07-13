@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { radarGeometry, toPointsAttr, axisAngle, RADAR_MAX } from './radar'
-import { EMPTY_FLAVOR, FLAVOR_AXES } from './types'
+import { EMPTY_FLAVOR, FLAVOR_AXES, type FlavorTags } from './types'
+
+describe('FLAVOR_AXES', () => {
+  it('lists every FlavorTags key exactly once', () => {
+    // EMPTY_FLAVOR is annotated as FlavorTags, so its keys are the full set;
+    // the `as const` axes array is not compiler-checked for completeness.
+    expect([...FLAVOR_AXES].sort()).toEqual(Object.keys(EMPTY_FLAVOR).sort())
+    expect(new Set(FLAVOR_AXES).size).toBe(FLAVOR_AXES.length)
+  })
+})
 
 describe('radar geometry', () => {
   const size = 300
   const geo = radarGeometry(
-    { sweet: 5, smoky: 0, fruity: 3, oaky: 5, spicy: 1 },
+    { ...EMPTY_FLAVOR, sweet: 5, smoky: 0, fruity: 3, oaky: 5, spicy: 1 },
     size,
   )
 
@@ -52,13 +61,32 @@ describe('radar geometry', () => {
 
   it('clamps out-of-range values into 0..5', () => {
     const geo2 = radarGeometry(
-      { sweet: 99, smoky: -4, fruity: 3, oaky: 0, spicy: 0 },
+      { ...EMPTY_FLAVOR, sweet: 99, smoky: -4, fruity: 3 },
       size,
     )
     const sweet = geo2.axes.find((a) => a.key === 'sweet')!
     const smoky = geo2.axes.find((a) => a.key === 'smoky')!
     expect(sweet.value).toBe(5)
     expect(smoky.value).toBe(0)
+  })
+
+  it('renders finite geometry for a 5-axis profile from a pre-expansion API', () => {
+    // An API build that predates the 8-axis expansion serves profiles missing
+    // floral/acidity/body entirely; the radar must not emit NaN coordinates.
+    const legacy = {
+      sweet: 3,
+      smoky: 5,
+      fruity: 2,
+      oaky: 3,
+      spicy: 2,
+    } as unknown as FlavorTags
+    const geo5 = radarGeometry(legacy, size)
+    for (const axis of geo5.axes) {
+      expect(Number.isFinite(axis.value)).toBe(true)
+      expect(Number.isFinite(axis.vertex.x)).toBe(true)
+      expect(Number.isFinite(axis.vertex.y)).toBe(true)
+    }
+    expect(toPointsAttr(geo5.polygon)).not.toMatch(/NaN/)
   })
 
   it('serialises polygon points as an SVG points attribute', () => {

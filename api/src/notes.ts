@@ -6,7 +6,12 @@ import type {
 import { embedText } from './bedrock'
 import { json } from './http'
 import { getBottleItem, noteSk, putNote, toNote } from './store'
-import { FLAVOR_AXES, type FlavorTags, type NoteItem } from './types'
+import {
+  CORE_FLAVOR_AXES,
+  FLAVOR_AXES,
+  type FlavorTags,
+  type NoteItem,
+} from './types'
 
 const str = (v: unknown, max: number, allowEmpty = false): string | undefined => {
   if (typeof v !== 'string') return undefined
@@ -19,11 +24,19 @@ const str = (v: unknown, max: number, allowEmpty = false): string | undefined =>
 const num = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined
 
-function parseFlavorTags(v: unknown): FlavorTags | null {
+/**
+ * Validate flavor tags. The five CORE_FLAVOR_AXES are required (every client
+ * ever shipped sends them); the newer axes are optional so a stale PWA client
+ * that predates the 8-axis expansion can still log notes — absent axes are
+ * simply not stored, and aggregation skips them.
+ */
+function parseFlavorTags(v: unknown): Partial<FlavorTags> | null {
   if (typeof v !== 'object' || v === null) return null
   const r = v as Record<string, unknown>
-  const out = {} as FlavorTags
+  const core = new Set<string>(CORE_FLAVOR_AXES)
+  const out: Partial<FlavorTags> = {}
   for (const axis of FLAVOR_AXES) {
+    if (r[axis] === undefined && !core.has(axis)) continue
     const n = num(r[axis])
     if (n === undefined || n < 0 || n > 5) return null
     out[axis] = n

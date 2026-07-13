@@ -1,8 +1,9 @@
 /**
  * Pure geometry for the D3 flavor radar. Kept free of DOM/React so it's unit
  * testable: given flavor tags (each 0..5), produce the polygon points and the
- * axis endpoints on a regular pentagon. Angles start at 12 o'clock and go
- * clockwise so the axes read in FLAVOR_AXES order.
+ * axis endpoints on a regular polygon with one vertex per FLAVOR_AXES entry.
+ * Angles start at 12 o'clock and go clockwise so the axes read in
+ * FLAVOR_AXES order.
  */
 import type { FlavorTags } from './types'
 import { FLAVOR_AXES } from './types'
@@ -89,7 +90,9 @@ export function toPointsAttr(points: Point[]): string {
 }
 
 function clamp(n: number): number {
-  if (Number.isNaN(n)) return 0
+  // Guards undefined/NaN, not just NaN: a flavorProfile served by an API build
+  // that predates the 8-axis expansion is missing the newer keys entirely.
+  if (!Number.isFinite(n)) return 0
   return Math.max(0, Math.min(RADAR_MAX, n))
 }
 

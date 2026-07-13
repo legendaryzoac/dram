@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { rankBySimilarity } from './recommend'
 import type { Bottle, FlavorTags } from './types'
+import { EMPTY_FLAVOR } from './types'
 
 let seq = 0
 function bottle(
@@ -25,8 +26,23 @@ function bottle(
   }
 }
 
-const smoky: FlavorTags = { sweet: 1, smoky: 5, fruity: 2, oaky: 3, spicy: 3 }
-const sweet: FlavorTags = { sweet: 5, smoky: 0, fruity: 4, oaky: 3, spicy: 1 }
+const smoky: FlavorTags = {
+  ...EMPTY_FLAVOR,
+  sweet: 1,
+  smoky: 5,
+  fruity: 2,
+  oaky: 3,
+  spicy: 3,
+  body: 4,
+}
+const sweet: FlavorTags = {
+  ...EMPTY_FLAVOR,
+  sweet: 5,
+  fruity: 4,
+  oaky: 3,
+  spicy: 1,
+  acidity: 2,
+}
 
 describe('rankBySimilarity', () => {
   it('drops the target itself from the ranking', () => {

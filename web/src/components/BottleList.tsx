@@ -1,11 +1,13 @@
 /**
- * Bottle list (route `#/`). Cards showing name / producer / region / type,
- * average rating, and note count, with client-side search + type/region
- * filters. The "Add bottle" action is auth-gated; signed-out visitors get a
- * prompt to sign in or enter demo mode.
+ * Bottle list — one component, two tabs: the cabinet (route `#/`, alcohol) and
+ * the coffee bar (route `#/coffee`). Cards showing name / producer / region /
+ * type, average rating, and note count, with client-side search + type/roast
+ * and region filters. The "Add" action is auth-gated; signed-out visitors get
+ * a prompt to sign in or enter demo mode.
  */
 import { useEffect, useMemo, useState } from 'react'
-import type { Bottle } from '../lib/types'
+import type { BeverageFamily, Bottle } from '../lib/types'
+import { familyOf, isCoffee } from '../lib/types'
 import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
@@ -20,12 +22,43 @@ import {
 } from './ui'
 
 interface Props {
+  family: BeverageFamily
   onRequireAuth: () => void
 }
 
-export default function BottleList({ onRequireAuth }: Props) {
+/** Family-specific copy so the coffee tab doesn't read like a liquor shelf. */
+const COPY: Record<
+  BeverageFamily,
+  {
+    title: string
+    unit: (n: number) => string
+    add: string
+    loading: string
+    spinner: string
+    empty: string
+  }
+> = {
+  alcohol: {
+    title: 'The cabinet',
+    unit: (n) => `${n} ${n === 1 ? 'bottle' : 'bottles'} logged`,
+    add: '+ Add bottle',
+    loading: 'Loading bottles…',
+    spinner: 'Pouring the list…',
+    empty: 'No bottles match those filters.',
+  },
+  coffee: {
+    title: 'The coffee bar',
+    unit: (n) => `${n} ${n === 1 ? 'coffee' : 'coffees'} logged`,
+    add: '+ Add coffee',
+    loading: 'Loading coffees…',
+    spinner: 'Grinding the list…',
+    empty: 'No coffees match those filters.',
+  },
+}
+
+export default function BottleList({ family, onRequireAuth }: Props) {
   const { token } = useAuth()
-  const [bottles, setBottles] = useState<Bottle[] | null>(null)
+  const [all, setAll] = useState<Bottle[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [type, setType] = useState('all')
@@ -35,16 +68,32 @@ export default function BottleList({ onRequireAuth }: Props) {
     let live = true
     getApi()
       .listBottles()
-      .then((b) => live && setBottles(b))
+      .then((b) => live && setAll(b))
       .catch((e) => live && setError(e.message))
     return () => {
       live = false
     }
   }, [])
 
+  // Reset filters when hopping between the cabinet and the coffee bar — the
+  // vocabularies don't overlap.
+  useEffect(() => {
+    setQuery('')
+    setType('all')
+    setRegion('all')
+  }, [family])
+
+  const bottles = useMemo(
+    () => (all ? all.filter((b) => familyOf(b.type) === family) : null),
+    [all, family],
+  )
+
+  // Coffee is a single type, so its first filter slices by roast instead.
+  const coffeeTab = family === 'coffee'
   const types = useMemo(
-    () => ['all', ...distinct(bottles, (b) => b.type)],
-    [bottles],
+    () =>
+      ['all', ...distinct(bottles, (b) => (coffeeTab ? (b.roast ?? '') : b.type))],
+    [bottles, coffeeTab],
   )
   const regions = useMemo(
     () => ['all', ...distinct(bottles, (b) => b.region)],
@@ -55,7 +104,8 @@ export default function BottleList({ onRequireAuth }: Props) {
     if (!bottles) return []
     const q = query.trim().toLowerCase()
     return bottles.filter((b) => {
-      if (type !== 'all' && b.type !== type) return false
+      const facet = coffeeTab ? (b.roast ?? '') : b.type
+      if (type !== 'all' && facet !== type) return false
       if (region !== 'all' && b.region !== region) return false
       if (!q) return true
       return (
@@ -64,34 +114,40 @@ export default function BottleList({ onRequireAuth }: Props) {
         b.region.toLowerCase().includes(q)
       )
     })
-  }, [bottles, query, type, region])
+  }, [bottles, query, type, region, coffeeTab])
 
   function addBottle() {
-    if (token) navigate(href.add())
+    if (token) navigate(href.add(family))
     else onRequireAuth()
   }
+
+  const copy = COPY[family]
 
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-fg text-2xl font-bold sm:text-3xl">
-            The cabinet
+            {copy.title}
           </h1>
           <p className="text-muted mt-1 text-sm">
-            {bottles ? `${bottles.length} bottles logged` : 'Loading bottles…'} ·
-            tap one for notes, radar &amp; recommendations
+            {bottles ? copy.unit(bottles.length) : copy.loading} · tap one for
+            notes, radar &amp; recommendations
           </p>
         </div>
         <button className={buttonClass} onClick={addBottle}>
-          + Add bottle
+          {copy.add}
         </button>
       </header>
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <input
           className={`${inputClass} sm:max-w-xs`}
-          placeholder="Search name, producer, region…"
+          placeholder={
+            coffeeTab
+              ? 'Search name, roaster, origin…'
+              : 'Search name, producer, region…'
+          }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -99,11 +155,11 @@ export default function BottleList({ onRequireAuth }: Props) {
           className={`${inputClass} sm:w-40`}
           value={type}
           onChange={(e) => setType(e.target.value)}
-          aria-label="Filter by type"
+          aria-label={coffeeTab ? 'Filter by roast' : 'Filter by type'}
         >
           {types.map((t) => (
             <option key={t} value={t}>
-              {t === 'all' ? 'All types' : t}
+              {t === 'all' ? (coffeeTab ? 'All roasts' : 'All types') : t}
             </option>
           ))}
         </select>
@@ -111,22 +167,28 @@ export default function BottleList({ onRequireAuth }: Props) {
           className={`${inputClass} sm:w-44`}
           value={region}
           onChange={(e) => setRegion(e.target.value)}
-          aria-label="Filter by region"
+          aria-label={coffeeTab ? 'Filter by origin' : 'Filter by region'}
         >
           {regions.map((r) => (
             <option key={r} value={r}>
-              {r === 'all' ? 'All regions' : r}
+              {r === 'all' ? (coffeeTab ? 'All origins' : 'All regions') : r}
             </option>
           ))}
         </select>
       </div>
 
-      {error && <ErrorNote>Couldn’t load bottles: {error}</ErrorNote>}
-      {!bottles && !error && <Spinner label="Pouring the list…" />}
+      {error && <ErrorNote>Couldn’t load the list: {error}</ErrorNote>}
+      {!bottles && !error && <Spinner label={copy.spinner} />}
 
       {bottles && filtered.length === 0 && (
         <Panel>
-          <p className="text-muted text-sm">No bottles match those filters.</p>
+          <p className="text-muted text-sm">
+            {bottles.length === 0
+              ? coffeeTab
+                ? 'No coffees logged yet — add your first bag.'
+                : 'No bottles logged yet — add your first one.'
+              : copy.empty}
+          </p>
         </Panel>
       )}
 
@@ -154,7 +216,12 @@ export default function BottleList({ onRequireAuth }: Props) {
             <div className="mt-auto flex flex-wrap items-center gap-2">
               <Tag tone="accent">{b.type}</Tag>
               <Tag>{b.region}</Tag>
-              <Tag>{b.abv}% ABV</Tag>
+              {isCoffee(b.type) ? (
+                b.roast && <Tag>{b.roast} roast</Tag>
+              ) : (
+                <Tag>{b.abv}% ABV</Tag>
+              )}
+              {b.style && <Tag>{b.style}</Tag>}
               <span className="text-muted ml-auto font-mono text-xs">
                 {b.noteCount} {b.noteCount === 1 ? 'note' : 'notes'}
               </span>
@@ -171,5 +238,7 @@ function distinct(
   pick: (b: Bottle) => string,
 ): string[] {
   if (!bottles) return []
-  return [...new Set(bottles.map(pick))].sort((a, b) => a.localeCompare(b))
+  return [...new Set(bottles.map(pick).filter((v) => v !== ''))].sort((a, b) =>
+    a.localeCompare(b),
+  )
 }

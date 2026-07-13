@@ -1,22 +1,55 @@
 // The frozen REST contract, shared by handlers, storage, and the recommender.
 // The web workspace builds to the same shapes.
 
-/** Five flavor axes, each 0..5. Used on bottles (aggregate) and notes. */
+/**
+ * Eight flavor axes, each 0..5, shared by every beverage family so profiles
+ * stay directly comparable across whisky, wine, spirits, and coffee. Used on
+ * bottles (aggregate) and notes.
+ */
 export interface FlavorTags {
   sweet: number
-  smoky: number
   fruity: number
+  floral: number
+  acidity: number
+  body: number
   oaky: number
+  smoky: number
   spicy: number
 }
 
+/** All axes in radar/slider display order (a rough flavor wheel: sugars ->
+ *  fruit -> flowers -> brightness -> texture -> wood -> fire -> spice). */
 export const FLAVOR_AXES = [
+  'sweet',
+  'fruity',
+  'floral',
+  'acidity',
+  'body',
+  'oaky',
+  'smoky',
+  'spicy',
+] as const
+
+/** The original five axes. Notes written before the 8-axis expansion carry
+ *  only these; the newer axes are simply absent on those stored items. */
+export const CORE_FLAVOR_AXES = [
   'sweet',
   'smoky',
   'fruity',
   'oaky',
   'spicy',
 ] as const
+
+/**
+ * Beverage families. Coffee lives beside the alcohol cabinet in the same
+ * corpus: recommendations rank within the target's family and surface the
+ * other family separately (`crossFamily`).
+ */
+export type BeverageFamily = 'alcohol' | 'coffee'
+
+export function familyOf(type: string): BeverageFamily {
+  return type.trim().toLowerCase() === 'coffee' ? 'coffee' : 'alcohol'
+}
 
 /** A bottle as returned by the API. Last 3 fields are server-computed on GET. */
 export interface Bottle {
@@ -29,6 +62,12 @@ export interface Bottle {
   price: number | null
   /** Prominent grape variety, mainly for wines (optional, additive). */
   grape?: string
+  /** Expression/style, mainly for spirits — reposado, VSOP, navy strength… */
+  style?: string
+  /** Roast level, for coffee — light / medium / dark… */
+  roast?: string
+  /** Processing method, for coffee — washed / natural / honey… */
+  process?: string
   createdAt: string
   avgRating: number | null
   flavorProfile: FlavorTags | null
@@ -56,7 +95,9 @@ export interface Recommendation {
 
 export interface RecommendationResult {
   basis: 'structured' | 'text' | 'narrated'
-  recommendations: Recommendation[] // ranked desc, <= 5
+  recommendations: Recommendation[] // ranked desc, <= 5, same family as target
+  /** Picks from the other family (coffee <-> the cabinet), ranked desc, <= 3. */
+  crossFamily: Recommendation[]
   narration: string | null
   degraded: boolean
 }
@@ -76,10 +117,16 @@ export interface BottleItem {
   abv: number
   price: number | null
   grape?: string // optional grape variety (wines)
+  style?: string // optional expression/style (spirits)
+  roast?: string // optional roast level (coffee)
+  process?: string // optional processing method (coffee)
   createdAt: string
 }
 
-/** DynamoDB item for a note: PK=BOTTLE#<id>, SK=NOTE#<ts>#<id>. */
+/** DynamoDB item for a note: PK=BOTTLE#<id>, SK=NOTE#<ts>#<id>.
+ *  `flavorTags` is Partial because pre-expansion notes carry only the five
+ *  CORE_FLAVOR_AXES; aggregation averages each axis over the notes that
+ *  actually measured it. */
 export interface NoteItem {
   pk: string
   sk: string
@@ -90,7 +137,7 @@ export interface NoteItem {
   palate: string
   finish: string
   rating: number
-  flavorTags: FlavorTags
+  flavorTags: Partial<FlavorTags>
   createdAt: string
   /** Titan text embedding of nose+palate+finish. Stored, never returned. */
   embedding?: number[]

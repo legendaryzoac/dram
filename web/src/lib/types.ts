@@ -4,22 +4,53 @@
  * contract change on both sides.
  */
 
-/** Whiskey/wine categories the app knows about. Free-form on the wire, but
- *  these are the values the seed data + filters use. */
+/** Beverage categories the app knows about. Free-form on the wire, but
+ *  these are the values the seed data + the add-form dropdown use. */
 export type BottleType =
   | 'scotch'
   | 'bourbon'
   | 'rye'
   | 'irish'
+  | 'tequila'
+  | 'mezcal'
+  | 'rum'
+  | 'gin'
+  | 'absinthe'
+  | 'brandy'
+  | 'cognac'
   | 'red wine'
   | 'white wine'
+  | 'coffee'
 
-/** Five tasting axes, each 0..5. Drives the D3 radar chart. */
+/**
+ * Beverage families. Coffee lives beside the alcohol cabinet in the same
+ * corpus: it gets its own tab, and recommendations rank within the target's
+ * family while surfacing the other family separately (`crossFamily`).
+ */
+export type BeverageFamily = 'alcohol' | 'coffee'
+
+export function familyOf(type: string): BeverageFamily {
+  return type.trim().toLowerCase() === 'coffee' ? 'coffee' : 'alcohol'
+}
+
+export const isCoffee = (t: string) => familyOf(t) === 'coffee'
+export const isWine = (t: string) => t === 'red wine' || t === 'white wine'
+/** Any alcohol that isn't wine — whisky, agave, cane, botanical, brandy… */
+export const isSpirit = (t: string) => familyOf(t) === 'alcohol' && !isWine(t)
+
+/**
+ * Eight tasting axes, each 0..5, shared by every beverage family so radar
+ * profiles stay directly comparable across whisky, wine, spirits, and coffee.
+ * Drives the D3 radar chart.
+ */
 export interface FlavorTags {
   sweet: number
-  smoky: number
   fruity: number
+  floral: number
+  acidity: number
+  body: number
   oaky: number
+  smoky: number
   spicy: number
 }
 
@@ -33,6 +64,12 @@ export interface Bottle {
   price: number | null
   /** Prominent grape variety — shown as a label for wines (optional). */
   grape?: string
+  /** Expression/style — shown for spirits (optional): reposado, VSOP… */
+  style?: string
+  /** Roast level — shown for coffee (optional): light / medium / dark… */
+  roast?: string
+  /** Processing method — shown for coffee (optional): washed / natural… */
+  process?: string
   createdAt: string
   avgRating: number | null
   flavorProfile: FlavorTags | null
@@ -63,7 +100,10 @@ export type RecommendationBasis = 'structured' | 'text' | 'narrated'
 
 export interface RecommendationResult {
   basis: RecommendationBasis
+  /** Ranked desc, <= 5, same family as the target. */
   recommendations: Recommendation[]
+  /** Picks from the other family (coffee <-> the cabinet), ranked desc, <= 3. */
+  crossFamily: Recommendation[]
   narration: string | null
   degraded: boolean
 }
@@ -74,7 +114,8 @@ export interface BottleDetail {
   notes: TastingNote[]
 }
 
-/** Request body for POST /bottles. */
+/** Request body for POST /bottles. Nullable per-type fields (`grape`, `style`,
+ *  `roast`, `process`) accept null to clear the value on edit. */
 export interface NewBottleInput {
   name: string
   producer: string
@@ -83,7 +124,13 @@ export interface NewBottleInput {
   abv: number
   price?: number | null
   /** Grape variety, for wines (optional). */
-  grape?: string
+  grape?: string | null
+  /** Expression/style, for spirits (optional). */
+  style?: string | null
+  /** Roast level, for coffee (optional). */
+  roast?: string | null
+  /** Processing method, for coffee (optional). */
+  process?: string | null
 }
 
 /** Request body for POST /bottles/{id}/notes. */
@@ -95,19 +142,27 @@ export interface NewNoteInput {
   flavorTags: FlavorTags
 }
 
-/** The five flavor axes in a fixed display order (radar + slider order). */
+/** The eight flavor axes in a fixed display order (radar + slider order): a
+ *  rough flavor wheel — sugars -> fruit -> flowers -> brightness -> texture ->
+ *  wood -> fire -> spice. */
 export const FLAVOR_AXES = [
   'sweet',
-  'smoky',
   'fruity',
+  'floral',
+  'acidity',
+  'body',
   'oaky',
+  'smoky',
   'spicy',
 ] as const satisfies readonly (keyof FlavorTags)[]
 
 export const EMPTY_FLAVOR: FlavorTags = {
   sweet: 0,
-  smoky: 0,
   fruity: 0,
+  floral: 0,
+  acidity: 0,
+  body: 0,
   oaky: 0,
+  smoky: 0,
   spicy: 0,
 }

@@ -39,30 +39,43 @@ function AccountButton({ onSignIn }: { onSignIn: () => void }) {
 
 function Routed({ onRequireAuth }: { onRequireAuth: () => void }) {
   const route = useRoute()
+  // Keys reset per-screen state (form fields, open note form, in-flight data)
+  // when navigating between instances of the same component — e.g. detail ->
+  // detail via a recommendation, or add -> edit.
   switch (route.name) {
     case 'detail':
-      return <BottleDetail id={route.id} onRequireAuth={onRequireAuth} />
+      return (
+        <BottleDetail
+          key={route.id}
+          id={route.id}
+          onRequireAuth={onRequireAuth}
+        />
+      )
     case 'add':
-      return <BottleForm />
+      return <BottleForm key={`add-${route.family}`} initialFamily={route.family} />
     case 'edit':
-      return <BottleForm editId={route.id} />
+      return <BottleForm key={`edit-${route.id}`} editId={route.id} />
     case 'list':
     default:
-      return <BottleList onRequireAuth={onRequireAuth} />
+      return <BottleList family={route.family} onRequireAuth={onRequireAuth} />
   }
 }
 
 function Inner() {
   const [authOpen, setAuthOpen] = useState(false)
+  const route = useRoute()
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteNav badge={USE_MOCK ? 'mock API · demo data' : 'live API'} />
+      <SiteNav
+        badge={USE_MOCK ? 'mock API · demo data' : 'live API'}
+        active={route.name === 'list' ? route.family : undefined}
+      />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-5 pt-[76px] pb-6 sm:px-8">
         <div className="mb-5 flex items-center justify-between">
           <p className="text-muted font-mono text-xs">
-            whiskey &amp; wine tasting log · layered recommender
+            whisky, wine &amp; coffee tasting log · layered recommender
           </p>
           <AccountButton onSignIn={() => setAuthOpen(true)} />
         </div>

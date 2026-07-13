@@ -3,9 +3,10 @@
  *
  *   - `makeRealApi()`  — real `fetch` against `VITE_API_BASE_URL` (default
  *                        `/api`), Cognito JWT Bearer on writes, public GETs.
- *   - `makeMockApi()`  — in-memory, seeded with ~12 bottles + notes + recs, so
- *                        every screen and every write flow is exercisable with
- *                        no deployed backend.
+ *   - `makeMockApi()`  — in-memory, seeded with a full cabinet + coffee bar
+ *                        (~21 entries with notes + recs), so every screen and
+ *                        every write flow is exercisable with no deployed
+ *                        backend.
  *
  * `getApi()` picks between them from `import.meta.env.VITE_USE_MOCK`. The mock
  * is the default so `vite dev` / preview work fully offline; set

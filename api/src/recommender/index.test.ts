@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BottleItem, FlavorTags, NoteItem } from '../types'
-import { rankStructured, rankText, recommend, type CorpusBottle } from './index'
+import {
+  rankCross,
+  rankStructured,
+  rankText,
+  recommend,
+  type CorpusBottle,
+} from './index'
 
 let seq = 0
 function bottle(
@@ -27,7 +33,7 @@ function bottle(
 function note(
   bottleId: string,
   rating: number,
-  flavor: FlavorTags,
+  flavor: Partial<FlavorTags>,
   embedding?: number[],
 ): NoteItem {
   seq += 1
@@ -47,13 +53,14 @@ function note(
   }
 }
 
+/** A core-five-axes tag set, as a pre-expansion note would carry. */
 const F = (
   sweet: number,
   smoky: number,
   fruity: number,
   oaky: number,
   spicy: number,
-): FlavorTags => ({ sweet, smoky, fruity, oaky, spicy })
+): Partial<FlavorTags> => ({ sweet, smoky, fruity, oaky, spicy })
 
 describe('rankStructured', () => {
   it('ranks a lookalike above a dissimilar bottle', () => {
@@ -159,6 +166,88 @@ describe('recommend — degradation chain', () => {
     ]
     const res = await recommend('t', solo)
     expect(res.recommendations).toEqual([])
+    expect(res.crossFamily).toEqual([])
+    expect(res.degraded).toBe(false)
+  })
+})
+
+describe('family gating + crossFamily', () => {
+  const smokyTags = F(1, 5, 1, 3, 2)
+
+  const mixedCorpus = (): CorpusBottle[] => [
+    { item: bottle('target', 'Islay', 'scotch', 46), notes: [note('target', 8, smokyTags)] },
+    { item: bottle('twin', 'Islay', 'scotch', 46), notes: [note('twin', 7, smokyTags)] },
+    // A coffee with the *identical* flavor profile — without gating it would
+    // outrank everything.
+    { item: bottle('brew', 'Sumatra', 'coffee', 0), notes: [note('brew', 8, smokyTags)] },
+  ]
+
+  it('main recommendations never cross families', () => {
+    const ranked = rankStructured('target', mixedCorpus())
+    expect(ranked.map((r) => r.bottleId)).toContain('twin')
+    expect(ranked.map((r) => r.bottleId)).not.toContain('brew')
+  })
+
+  it('crossFamily surfaces only the other family', () => {
+    const cross = rankCross('target', mixedCorpus())
+    expect(cross.map((r) => r.bottleId)).toEqual(['brew'])
+  })
+
+  it('crossFamily works in the coffee -> alcohol direction too', () => {
+    const cross = rankCross('brew', mixedCorpus())
+    expect(cross.map((r) => r.bottleId).sort()).toEqual(['target', 'twin'])
+  })
+
+  it('crossFamily is empty when the corpus is single-family', () => {
+    const corpus: CorpusBottle[] = [
+      { item: bottle('t', 'Islay', 'scotch', 46), notes: [] },
+      { item: bottle('u', 'Islay', 'scotch', 46), notes: [] },
+    ]
+    expect(rankCross('t', corpus)).toEqual([])
+  })
+
+  it('main text ranking never crosses families, even when the other family embeds closest', () => {
+    const corpus: CorpusBottle[] = [
+      { item: bottle('target', 'Islay', 'scotch', 46), notes: [note('target', 8, smokyTags, [1, 0, 0])] },
+      // The coffee's embedding is nearly identical to the target's...
+      { item: bottle('brew', 'Sumatra', 'coffee', 0), notes: [note('brew', 8, smokyTags, [0.99, 0.01, 0])] },
+      // ...while the in-family candidate is farther away.
+      { item: bottle('twin', 'Speyside', 'scotch', 40), notes: [note('twin', 7, smokyTags, [0.6, 0.4, 0])] },
+    ]
+    const ranked = rankText('target', corpus)
+    expect(ranked).not.toBeNull()
+    expect(ranked!.map((r) => r.bottleId)).toEqual(['twin'])
+  })
+
+  it('crossFamily prefers the text layer when embeddings exist on both sides', () => {
+    const corpus: CorpusBottle[] = [
+      { item: bottle('target', 'Islay', 'scotch', 46), notes: [note('target', 8, smokyTags, [1, 0, 0])] },
+      { item: bottle('close-brew', 'Sumatra', 'coffee', 0), notes: [note('close-brew', 8, smokyTags, [0.9, 0.1, 0])] },
+      { item: bottle('far-brew', 'Yirgacheffe', 'coffee', 0), notes: [note('far-brew', 8, smokyTags, [0, 0, 1])] },
+    ]
+    const cross = rankCross('target', corpus)
+    expect(cross.map((r) => r.bottleId)).toEqual(['close-brew', 'far-brew'])
+    expect(cross[0].reason).toMatch(/notes/i)
+  })
+
+  it('crossFamily caps at 3', () => {
+    const corpus: CorpusBottle[] = [
+      { item: bottle('target', 'Islay', 'scotch', 46), notes: [] },
+    ]
+    for (let i = 0; i < 5; i++) {
+      corpus.push({ item: bottle(`c${i}`, 'Huila', 'coffee', 0), notes: [] })
+    }
+    expect(rankCross('target', corpus).length).toBe(3)
+  })
+
+  it('recommend() carries crossFamily even when the main list is empty', async () => {
+    const corpus: CorpusBottle[] = [
+      { item: bottle('t', 'Islay', 'scotch', 46), notes: [] },
+      { item: bottle('brew', 'Huila', 'coffee', 0), notes: [] },
+    ]
+    const res = await recommend('t', corpus)
+    expect(res.recommendations).toEqual([])
+    expect(res.crossFamily.map((r) => r.bottleId)).toEqual(['brew'])
     expect(res.degraded).toBe(false)
   })
 })

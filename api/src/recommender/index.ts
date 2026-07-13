@@ -2,6 +2,11 @@
 // via `basis`, degrading gracefully. `degraded` is true only when Bedrock was
 // meant to run (text/narrated) but was unavailable, forcing a fall to layer 1.
 //
+// The corpus is one shared cabinet across beverage families (alcohol +
+// coffee). The main ranking stays within the target's family; `crossFamily`
+// separately surfaces the best matches from the other family — which coffees
+// a wine points to, and vice versa.
+//
 // Layer 1 (structured): always on, no Bedrock. Feature-vector every bottle from
 //   region/type/flavor/abv; cosine-rank the rest against a target profile that
 //   is pulled toward the user's highly-rated bottles.
@@ -12,6 +17,7 @@
 import type { NoteItem } from '../types'
 import type { BottleItem } from '../types'
 import type { Recommendation, RecommendationResult } from '../types'
+import { familyOf } from '../types'
 import {
   buildVocab,
   cosine,
@@ -30,16 +36,29 @@ export interface CorpusBottle {
 }
 
 const MAX_RECS = 5
+const MAX_CROSS = 3
 const NARRATE_CANDIDATES = 3
 
 // ---- structured helpers (pure) ----
 
-function aggregateFlavor(notes: NoteItem[]): FlavorTags | null {
+/** Per-axis mean over the notes that measured that axis — pre-expansion notes
+ *  lack the newer axes and shouldn't drag them toward zero. Axes no note
+ *  measured stay absent (vectorize fills them with a neutral value). */
+function aggregateFlavor(notes: NoteItem[]): Partial<FlavorTags> | null {
   if (notes.length === 0) return null
-  const sum: FlavorTags = { sweet: 0, smoky: 0, fruity: 0, oaky: 0, spicy: 0 }
-  for (const n of notes) for (const a of FLAVOR_AXES) sum[a] += n.flavorTags[a]
-  const out = {} as FlavorTags
-  for (const a of FLAVOR_AXES) out[a] = sum[a] / notes.length
+  const out: Partial<FlavorTags> = {}
+  for (const a of FLAVOR_AXES) {
+    let sum = 0
+    let count = 0
+    for (const n of notes) {
+      const v = n.flavorTags[a]
+      if (typeof v === 'number') {
+        sum += v
+        count += 1
+      }
+    }
+    if (count > 0) out[a] = sum / count
+  }
   return out
 }
 
@@ -58,15 +77,35 @@ function avgRating(notes: NoteItem[]): number | null {
   return notes.reduce((a, n) => a + n.rating, 0) / notes.length
 }
 
-/**
- * Structured ranking (layer 1). Returns the target's neighbors ranked by a
- * blend of (a) similarity to the target bottle and (b) similarity to the
- * user's taste centroid — the flavor-weighted mean of highly-rated bottles.
- * Pure over its inputs; the handler supplies the corpus.
- */
-export function rankStructured(
+/** Ids of corpus bottles in (or not in) the target's family, target excluded. */
+function candidateIds(
   targetId: string,
   corpus: CorpusBottle[],
+  sameFamily: boolean,
+): Set<string> {
+  const target = corpus.find((b) => b.item.id === targetId)
+  if (!target) return new Set()
+  const family = familyOf(target.item.type_)
+  const ids = new Set<string>()
+  for (const b of corpus) {
+    if (b.item.id === targetId) continue
+    if ((familyOf(b.item.type_) === family) === sameFamily) ids.add(b.item.id)
+  }
+  return ids
+}
+
+/**
+ * Structured ranking over a candidate subset. Returns candidates ranked by a
+ * blend of (a) similarity to the target bottle and (b) similarity to the
+ * user's taste centroid — the flavor-weighted mean of highly-rated bottles
+ * among the candidates. Pure over its inputs; the vocab spans the whole
+ * corpus so vectors line up regardless of the subset ranked.
+ */
+function rankStructuredAmong(
+  targetId: string,
+  corpus: CorpusBottle[],
+  ids: ReadonlySet<string>,
+  reason: string,
 ): Recommendation[] {
   const structured = corpus.map(toStructured)
   const vocab = buildVocab(structured)
@@ -75,21 +114,21 @@ export function rankStructured(
   if (!target) return []
   const targetVec = vectorize(target, vocab)
 
-  // Taste centroid: mean vector of bottles the user rated >= 7, so
-  // recommendations lean toward what they already love, not just the lookalike.
-  const loved = corpus.filter((b) => (avgRating(b.notes) ?? 0) >= 7)
-  const lovedVecs = loved
-    .filter((b) => b.item.id !== targetId)
+  // Taste centroid: mean vector of candidate-side bottles the user rated >= 7,
+  // so recommendations lean toward what they already love, not just the
+  // lookalike.
+  const lovedVecs = corpus
+    .filter((b) => ids.has(b.item.id) && (avgRating(b.notes) ?? 0) >= 7)
     .map((b) => vectorize(byId.get(b.item.id)!, vocab))
   const centroid = meanVector(lovedVecs)
 
   const candidates = structured
-    .filter((s) => s.id !== targetId)
+    .filter((s) => ids.has(s.id))
     .map((s) => ({ id: s.id, vector: vectorize(s, vocab) }))
 
   const nameById = new Map(corpus.map((b) => [b.item.id, b.item.name]))
 
-  const ranked = candidates
+  return candidates
     .map(({ id, vector }) => {
       const simTarget = toScore(cosine(targetVec, vector))
       const simTaste = centroid ? toScore(cosine(centroid, vector)) : simTarget
@@ -100,22 +139,23 @@ export function rankStructured(
         bottleId: id,
         name: nameById.get(id) ?? id,
         score: Math.round(score * 1000) / 1000,
-        reason: 'Similar region, type, and flavor profile.',
+        reason,
       }
     })
     .sort((a, b) => b.score - a.score || (a.bottleId < b.bottleId ? -1 : 1))
-
-  return ranked.slice(0, MAX_RECS)
 }
 
 /**
- * Text ranking (layer 2). Each bottle's text vector is the mean of its notes'
- * embeddings; bottles with no embedded notes are excluded. Returns null when
- * the target itself has no text vector (nothing to rank against).
+ * Text ranking over a candidate subset. Each bottle's text vector is the mean
+ * of its notes' embeddings; bottles with no embedded notes are excluded.
+ * Returns null when the target itself has no text vector (nothing to rank
+ * against) or no candidate does.
  */
-export function rankText(
+function rankTextAmong(
   targetId: string,
   corpus: CorpusBottle[],
+  ids: ReadonlySet<string>,
+  reason: string,
 ): Recommendation[] | null {
   const textVec = (b: CorpusBottle): number[] | null =>
     meanVector(
@@ -133,20 +173,74 @@ export function rankText(
   const nameById = new Map<string, string>()
   for (const b of corpus) {
     nameById.set(b.item.id, b.item.name)
-    if (b.item.id === targetId) continue
+    if (!ids.has(b.item.id)) continue
     const v = textVec(b)
     if (v) candidates.push({ id: b.item.id, vector: v })
   }
   if (candidates.length === 0) return null
 
-  return rankBySimilarity(targetVec, candidates)
-    .slice(0, MAX_RECS)
-    .map((r) => ({
-      bottleId: r.id,
-      name: nameById.get(r.id) ?? r.id,
-      score: Math.round(r.score * 1000) / 1000,
-      reason: 'Tastes similar based on your written notes.',
-    }))
+  return rankBySimilarity(targetVec, candidates).map((r) => ({
+    bottleId: r.id,
+    name: nameById.get(r.id) ?? r.id,
+    score: Math.round(r.score * 1000) / 1000,
+    reason,
+  }))
+}
+
+/** Structured ranking (layer 1) within the target's family. */
+export function rankStructured(
+  targetId: string,
+  corpus: CorpusBottle[],
+): Recommendation[] {
+  return rankStructuredAmong(
+    targetId,
+    corpus,
+    candidateIds(targetId, corpus, true),
+    'Similar region, type, and flavor profile.',
+  ).slice(0, MAX_RECS)
+}
+
+/** Text ranking (layer 2) within the target's family. */
+export function rankText(
+  targetId: string,
+  corpus: CorpusBottle[],
+): Recommendation[] | null {
+  const ranked = rankTextAmong(
+    targetId,
+    corpus,
+    candidateIds(targetId, corpus, true),
+    'Tastes similar based on your written notes.',
+  )
+  return ranked && ranked.slice(0, MAX_RECS)
+}
+
+/**
+ * Cross-family picks: the other family's best matches for this target
+ * (coffee <-> the cabinet). Prefers the text layer — prose tasting language
+ * crosses families far better than metadata — and falls back to structured.
+ */
+export function rankCross(
+  targetId: string,
+  corpus: CorpusBottle[],
+): Recommendation[] {
+  const ids = candidateIds(targetId, corpus, false)
+  if (ids.size === 0) return []
+  const text = rankTextAmong(
+    targetId,
+    corpus,
+    ids,
+    'Your notes describe a similar character.',
+  )
+  const ranked =
+    text && text.length > 0
+      ? text
+      : rankStructuredAmong(
+          targetId,
+          corpus,
+          ids,
+          'A similar flavor profile, across the aisle.',
+        )
+  return ranked.slice(0, MAX_CROSS)
 }
 
 // ---- orchestration ----
@@ -162,10 +256,12 @@ export interface RecommendDeps {
 
 /**
  * Run the layered recommender for a target bottle over the full corpus.
- * Degradation chain:
+ * Degradation chain (main, same-family ranking):
  *   narrated -> text -> structured  (degraded=true if a Bedrock layer failed)
  *   text     -> structured          (degraded=true; text vectors unavailable)
  *   structured                      (degraded=false; expected floor)
+ * `crossFamily` rides along on every path with the other family's best
+ * matches; it never affects basis/degraded.
  */
 export async function recommend(
   targetId: string,
@@ -174,6 +270,7 @@ export async function recommend(
 ): Promise<RecommendationResult> {
   const structured = rankStructured(targetId, corpus)
   const text = rankText(targetId, corpus)
+  const crossFamily = rankCross(targetId, corpus)
 
   // Base ranking prefers text (it reflects real tasting language) but falls
   // back to structured when embeddings aren't present.
@@ -182,10 +279,11 @@ export async function recommend(
   const baseBasis: 'text' | 'structured' = usingText ? 'text' : 'structured'
 
   if (base.length === 0) {
-    // Nothing to recommend (e.g. the corpus has only the target bottle).
+    // Nothing in-family to recommend (e.g. the corpus has only the target).
     return {
       basis: 'structured',
       recommendations: [],
+      crossFamily,
       narration: null,
       degraded: false,
     }
@@ -216,6 +314,7 @@ export async function recommend(
         // Narrated returns the same ranked list (Haiku explains, doesn't
         // re-rank the score contract) with prose in `narration`.
         recommendations: base.slice(0, MAX_RECS),
+        crossFamily,
         narration,
         // Not degraded: text may or may not be present, but narration itself
         // succeeded. degraded reflects a *fallback below the intended layer*.
@@ -226,6 +325,7 @@ export async function recommend(
       return {
         basis: baseBasis,
         recommendations: base.slice(0, MAX_RECS),
+        crossFamily,
         narration: null,
         degraded: true,
       }
@@ -237,6 +337,7 @@ export async function recommend(
   return {
     basis: baseBasis,
     recommendations: base.slice(0, MAX_RECS),
+    crossFamily,
     narration: null,
     degraded: false,
   }

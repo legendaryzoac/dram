@@ -1,10 +1,18 @@
 /**
- * Add / edit a bottle (auth-gated, routes `#/add` and `#/bottles/:id/edit`).
- * Name / producer / region / type / ABV / price. On add it posts a new bottle;
- * on edit it PUTs a partial update. Redirects to the bottle's detail page.
+ * Add / edit a bottle or coffee (auth-gated, routes `#/add`, `#/add/coffee`,
+ * and `#/bottles/:id/edit`). Name / producer / region / type / ABV / price,
+ * plus per-category fields: grape (wine), style (spirits), roast + process
+ * (coffee). On add it posts a new bottle; on edit it PUTs a partial update.
+ * Redirects to the bottle's detail page.
  */
 import { useEffect, useState } from 'react'
-import type { Bottle, BottleType, NewBottleInput } from '../lib/types'
+import type {
+  BeverageFamily,
+  Bottle,
+  BottleType,
+  NewBottleInput,
+} from '../lib/types'
+import { familyOf, isCoffee, isSpirit, isWine } from '../lib/types'
 import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
@@ -18,33 +26,35 @@ import {
   Spinner,
 } from './ui'
 
-const TYPES: BottleType[] = [
-  'scotch',
-  'bourbon',
-  'rye',
-  'irish',
-  'red wine',
-  'white wine',
+const TYPE_GROUPS: Array<{ label: string; types: BottleType[] }> = [
+  { label: 'Whisky', types: ['scotch', 'bourbon', 'rye', 'irish'] },
+  { label: 'Agave', types: ['tequila', 'mezcal'] },
+  { label: 'Other spirits', types: ['rum', 'gin', 'absinthe', 'brandy', 'cognac'] },
+  { label: 'Wine', types: ['red wine', 'white wine'] },
+  { label: 'Coffee', types: ['coffee'] },
 ]
-
-/** Wine types get a grape-variety field, since the grape matters more than the
- *  producer for wine. */
-const isWine = (t: string) => t === 'red wine' || t === 'white wine'
 
 interface Props {
   /** Present when editing; absent when adding. */
   editId?: string
+  /** Which tab launched the add form; picks the default type. */
+  initialFamily?: BeverageFamily
 }
 
-export default function BottleForm({ editId }: Props) {
+export default function BottleForm({ editId, initialFamily }: Props) {
   const { token } = useAuth()
   const editing = Boolean(editId)
 
   const [name, setName] = useState('')
   const [producer, setProducer] = useState('')
   const [region, setRegion] = useState('')
-  const [type, setType] = useState<string>('scotch')
+  const [type, setType] = useState<string>(
+    initialFamily === 'coffee' ? 'coffee' : 'scotch',
+  )
   const [grape, setGrape] = useState('')
+  const [style, setStyle] = useState('')
+  const [roast, setRoast] = useState('')
+  const [process, setProcess] = useState('')
   const [abv, setAbv] = useState('43')
   const [price, setPrice] = useState('')
   const [loading, setLoading] = useState(editing)
@@ -79,9 +89,19 @@ export default function BottleForm({ editId }: Props) {
     setRegion(b.region)
     setType(b.type)
     setGrape(b.grape ?? '')
+    setStyle(b.style ?? '')
+    setRoast(b.roast ?? '')
+    setProcess(b.process ?? '')
     setAbv(String(b.abv))
     setPrice(b.price == null ? '' : String(b.price))
   }
+
+  const coffee = isCoffee(type)
+
+  /** Per-type fields: send the trimmed value when this type uses the field,
+   *  null otherwise so an edit that switches type clears stale values. */
+  const perType = (applies: boolean, value: string): string | null =>
+    applies && value.trim() !== '' ? value.trim() : null
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -93,10 +113,13 @@ export default function BottleForm({ editId }: Props) {
       producer: producer.trim(),
       region: region.trim(),
       type,
-      abv: Number(abv),
+      // Coffee has no meaningful ABV; store an honest 0.
+      abv: coffee ? 0 : Number(abv),
       price: price.trim() === '' ? null : Number(price),
-      // Only send a grape for wines; trims to undefined when blank/cleared.
-      grape: isWine(type) && grape.trim() !== '' ? grape.trim() : undefined,
+      grape: perType(isWine(type), grape),
+      style: perType(isSpirit(type), style),
+      roast: perType(coffee, roast),
+      process: perType(coffee, process),
     }
     try {
       const api = getApi()
@@ -112,19 +135,25 @@ export default function BottleForm({ editId }: Props) {
 
   if (loading) return <Spinner label="Loading bottle…" />
 
+  const backHref = editId ? href.detail(editId) : href.list(familyOf(type))
+
   return (
     <div className="mx-auto max-w-xl">
       <button
-        onClick={() =>
-          navigate(editId ? href.detail(editId) : href.list())
-        }
+        onClick={() => navigate(backHref)}
         className="text-muted hover:text-accent mb-4 font-mono text-sm"
       >
         ← back
       </button>
       <Panel>
         <h1 className="font-display text-fg mb-4 text-xl font-semibold">
-          {editing ? 'Edit bottle' : 'Add a bottle'}
+          {editing
+            ? coffee
+              ? 'Edit coffee'
+              : 'Edit bottle'
+            : coffee
+              ? 'Add a coffee'
+              : 'Add a bottle'}
         </h1>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <Field label="Name">
@@ -132,26 +161,26 @@ export default function BottleForm({ editId }: Props) {
               className={inputClass}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Lagavulin 16"
+              placeholder={coffee ? 'Ethiopia Yirgacheffe' : 'Lagavulin 16'}
               required
             />
           </Field>
-          <Field label="Producer">
+          <Field label={coffee ? 'Roaster' : 'Producer'}>
             <input
               className={inputClass}
               value={producer}
               onChange={(e) => setProducer(e.target.value)}
-              placeholder="Lagavulin"
+              placeholder={coffee ? 'Counter Culture Coffee' : 'Lagavulin'}
               required
             />
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Region">
+            <Field label={coffee ? 'Origin' : 'Region'}>
               <input
                 className={inputClass}
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
-                placeholder="Islay"
+                placeholder={coffee ? 'Yirgacheffe, Ethiopia' : 'Islay'}
                 required
               />
             </Field>
@@ -159,12 +188,28 @@ export default function BottleForm({ editId }: Props) {
               <select
                 className={inputClass}
                 value={type}
-                onChange={(e) => setType(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  // Leaving coffee re-exposes the ABV field; don't leave the
+                  // coffee sentinel 0 (or blank) sitting in it.
+                  if (
+                    isCoffee(type) &&
+                    !isCoffee(next) &&
+                    (abv.trim() === '' || Number(abv) === 0)
+                  ) {
+                    setAbv('43')
+                  }
+                  setType(next)
+                }}
               >
-                {TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
+                {TYPE_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.types.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </Field>
@@ -179,19 +224,51 @@ export default function BottleForm({ editId }: Props) {
               />
             </Field>
           )}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="ABV %">
+          {isSpirit(type) && (
+            <Field label="Style (optional)">
               <input
                 className={inputClass}
-                type="number"
-                min={0}
-                max={80}
-                step="0.1"
-                value={abv}
-                onChange={(e) => setAbv(e.target.value)}
-                required
+                value={style}
+                onChange={(e) => setStyle(e.target.value)}
+                placeholder="reposado · single barrel · london dry"
               />
             </Field>
+          )}
+          {coffee && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Roast (optional)">
+                <input
+                  className={inputClass}
+                  value={roast}
+                  onChange={(e) => setRoast(e.target.value)}
+                  placeholder="light / medium / dark"
+                />
+              </Field>
+              <Field label="Process (optional)">
+                <input
+                  className={inputClass}
+                  value={process}
+                  onChange={(e) => setProcess(e.target.value)}
+                  placeholder="washed / natural / honey"
+                />
+              </Field>
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {!coffee && (
+              <Field label="ABV %">
+                <input
+                  className={inputClass}
+                  type="number"
+                  min={0}
+                  max={90}
+                  step="0.1"
+                  value={abv}
+                  onChange={(e) => setAbv(e.target.value)}
+                  required
+                />
+              </Field>
+            )}
             <Field label="Price (optional)">
               <input
                 className={inputClass}
@@ -209,14 +286,18 @@ export default function BottleForm({ editId }: Props) {
 
           <div className="flex gap-3">
             <button className={buttonClass} disabled={busy}>
-              {busy ? 'Saving…' : editing ? 'Save changes' : 'Add bottle'}
+              {busy
+                ? 'Saving…'
+                : editing
+                  ? 'Save changes'
+                  : coffee
+                    ? 'Add coffee'
+                    : 'Add bottle'}
             </button>
             <button
               type="button"
               className={ghostButtonClass}
-              onClick={() =>
-                navigate(editId ? href.detail(editId) : href.list())
-              }
+              onClick={() => navigate(backHref)}
               disabled={busy}
             >
               Cancel

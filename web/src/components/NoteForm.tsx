@@ -1,13 +1,14 @@
 /**
- * Log-a-tasting-note form (auth-gated). Nose / palate / finish free text, a
- * 1–10 rating, and five flavor-tag sliders (0..5). The radar preview updates
- * live as the sliders move, so you see the profile you're describing before
- * you save. Built phone-first: single column, big tap targets, sliders that
- * work with a thumb.
+ * Log-a-tasting-note form (auth-gated). Three free-text prose fields, a 1–10
+ * rating, and eight flavor-tag sliders (0..5). The wire fields are always
+ * nose / palate / finish; coffee just wears them as aroma / flavor /
+ * aftertaste. The radar preview updates live as the sliders move, so you see
+ * the profile you're describing before you save. Built phone-first: single
+ * column, big tap targets, sliders that work with a thumb.
  */
 import { useState } from 'react'
 import type { FlavorTags, NewNoteInput } from '../lib/types'
-import { EMPTY_FLAVOR, FLAVOR_AXES } from '../lib/types'
+import { EMPTY_FLAVOR, FLAVOR_AXES, isCoffee } from '../lib/types'
 import { getApi } from '../lib/api'
 import { useAuth } from './AuthContext'
 import RadarChart from './RadarChart'
@@ -19,13 +20,40 @@ import {
   ErrorNote,
 } from './ui'
 
+/** Display labels + placeholders for the three prose fields, per family. */
+export const NOTE_FIELD_LABELS = {
+  alcohol: {
+    nose: 'Nose',
+    palate: 'Palate',
+    finish: 'Finish',
+    nosePh: 'What do you smell? Citrus, smoke, honey…',
+    palatePh: 'How does it taste? Body, sweetness, spice…',
+    finishPh: 'How does it end? Length, warmth, aftertaste…',
+  },
+  coffee: {
+    nose: 'Aroma',
+    palate: 'Flavor',
+    finish: 'Aftertaste',
+    nosePh: 'What do you smell? Florals, berries, cocoa…',
+    palatePh: 'How does it taste? Sweetness, acidity, body…',
+    finishPh: 'How does it linger? Clean, syrupy, drying…',
+  },
+} as const
+
 interface Props {
   bottleId: string
+  /** The bottle's beverage type — drives the coffee-vs-alcohol field labels. */
+  bottleType: string
   onSaved: () => void
   onCancel: () => void
 }
 
-export default function NoteForm({ bottleId, onSaved, onCancel }: Props) {
+export default function NoteForm({
+  bottleId,
+  bottleType,
+  onSaved,
+  onCancel,
+}: Props) {
   const { token } = useAuth()
   const [nose, setNose] = useState('')
   const [palate, setPalate] = useState('')
@@ -34,6 +62,9 @@ export default function NoteForm({ bottleId, onSaved, onCancel }: Props) {
   const [flavor, setFlavor] = useState<FlavorTags>({ ...EMPTY_FLAVOR })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const labels =
+    NOTE_FIELD_LABELS[isCoffee(bottleType) ? 'coffee' : 'alcohol']
 
   function setAxis(key: keyof FlavorTags, value: number) {
     setFlavor((f) => ({ ...f, [key]: value }))
@@ -59,26 +90,26 @@ export default function NoteForm({ bottleId, onSaved, onCancel }: Props) {
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {/* left: the words */}
         <div className="flex flex-col gap-4">
-          <Field label="Nose">
+          <Field label={labels.nose}>
             <textarea
               className={`${inputClass} min-h-[70px] resize-y`}
-              placeholder="What do you smell? Citrus, smoke, honey…"
+              placeholder={labels.nosePh}
               value={nose}
               onChange={(e) => setNose(e.target.value)}
             />
           </Field>
-          <Field label="Palate">
+          <Field label={labels.palate}>
             <textarea
               className={`${inputClass} min-h-[70px] resize-y`}
-              placeholder="How does it taste? Body, sweetness, spice…"
+              placeholder={labels.palatePh}
               value={palate}
               onChange={(e) => setPalate(e.target.value)}
             />
           </Field>
-          <Field label="Finish">
+          <Field label={labels.finish}>
             <textarea
               className={`${inputClass} min-h-[70px] resize-y`}
-              placeholder="How does it end? Length, warmth, aftertaste…"
+              placeholder={labels.finishPh}
               value={finish}
               onChange={(e) => setFinish(e.target.value)}
             />

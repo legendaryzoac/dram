@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { FLAVOR_AXES, type FlavorTags } from '../types'
 import {
   buildVocab,
   cosine,
@@ -8,6 +9,19 @@ import {
   vectorize,
   type StructuredBottle,
 } from './vector'
+
+describe('FLAVOR_AXES', () => {
+  it('lists every FlavorTags key exactly once', () => {
+    // A dropped axis would silently shrink sliders, radar, and vectors — the
+    // `as const` array is not compiler-checked for completeness.
+    const full: FlavorTags = {
+      sweet: 0, fruity: 0, floral: 0, acidity: 0,
+      body: 0, oaky: 0, smoky: 0, spicy: 0,
+    }
+    expect([...FLAVOR_AXES].sort()).toEqual(Object.keys(full).sort())
+    expect(new Set(FLAVOR_AXES).size).toBe(FLAVOR_AXES.length)
+  })
+})
 
 describe('cosine', () => {
   it('is 1 for identical direction', () => {
@@ -93,23 +107,33 @@ describe('vectorize + buildVocab', () => {
     const vocab = buildVocab(bottles)
     const vs = bottles.map((b) => vectorize(b, vocab))
     const dim = vs[0].length
-    // 2 regions + 1 type + 5 flavor + 1 abv = 9
-    expect(dim).toBe(9)
+    // 2 regions + 1 type + 8 flavor + 1 abv = 12
+    expect(dim).toBe(12)
     expect(vs.every((v) => v.length === dim)).toBe(true)
   })
 
   it('uses a neutral flavor block when the profile is absent', () => {
     const vocab = buildVocab(bottles)
     const v = vectorize(bottles[2], vocab) // c has null profile
-    // flavor dims are positions [regions(2)+types(1)] .. +5
-    const flavor = v.slice(3, 8)
-    expect(flavor).toEqual([0.5, 0.5, 0.5, 0.5, 0.5])
+    // flavor dims are positions [regions(2)+types(1)] .. +8
+    const flavor = v.slice(3, 11)
+    expect(flavor).toEqual([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
+  })
+
+  it('fills axes missing from a partial profile with the neutral value', () => {
+    const vocab = buildVocab(bottles)
+    // `a` has only the five core axes (a pre-expansion aggregate): the newer
+    // axes should read neutral, not zero.
+    const v = vectorize(bottles[0], vocab)
+    const flavor = v.slice(3, 11)
+    // FLAVOR_AXES order: sweet, fruity, floral, acidity, body, oaky, smoky, spicy
+    expect(flavor).toEqual([1 / 5, 1 / 5, 0.5, 0.5, 0.5, 3 / 5, 5 / 5, 2 / 5])
   })
 
   it('scales abv into ~[0,1]', () => {
     const vocab = buildVocab(bottles)
     const v = vectorize(bottles[0], vocab)
-    expect(v[v.length - 1]).toBeCloseTo(46 / 65)
+    expect(v[v.length - 1]).toBeCloseTo(46 / 90)
   })
 })
 

@@ -27,14 +27,22 @@ export const noteSk = (createdAt: string, id: string) =>
 
 function averageFlavor(notes: NoteItem[]): FlavorTags | null {
   if (notes.length === 0) return null
-  const sum: FlavorTags = { sweet: 0, smoky: 0, fruity: 0, oaky: 0, spicy: 0 }
-  for (const n of notes) {
-    for (const axis of FLAVOR_AXES) sum[axis] += n.flavorTags[axis]
-  }
   const out = {} as FlavorTags
   for (const axis of FLAVOR_AXES) {
+    // Average each axis over the notes that measured it — pre-expansion notes
+    // lack the newer axes and shouldn't drag them toward zero. An axis no note
+    // measured reads 0 on the wire.
+    let sum = 0
+    let count = 0
+    for (const n of notes) {
+      const v = n.flavorTags[axis]
+      if (typeof v === 'number') {
+        sum += v
+        count += 1
+      }
+    }
     // Round to 1 dp — enough for a radar chart, avoids float noise on the wire.
-    out[axis] = Math.round((sum[axis] / notes.length) * 10) / 10
+    out[axis] = count === 0 ? 0 : Math.round((sum / count) * 10) / 10
   }
   return out
 }
@@ -56,6 +64,9 @@ export function toBottle(item: BottleItem, notes: NoteItem[]): Bottle {
     abv: item.abv,
     price: item.price,
     grape: item.grape,
+    style: item.style,
+    roast: item.roast,
+    process: item.process,
     createdAt: item.createdAt,
     avgRating: averageRating(notes),
     flavorProfile: averageFlavor(notes),
@@ -64,6 +75,10 @@ export function toBottle(item: BottleItem, notes: NoteItem[]): Bottle {
 }
 
 export function toNote(item: NoteItem): TastingNote {
+  // Pre-expansion notes lack the newer axes; fill them with 0 so the wire
+  // shape is always a complete FlavorTags.
+  const flavorTags = {} as FlavorTags
+  for (const axis of FLAVOR_AXES) flavorTags[axis] = item.flavorTags[axis] ?? 0
   // Deliberately omits `embedding` — it is stored but never returned.
   return {
     id: item.id,
@@ -72,7 +87,7 @@ export function toNote(item: NoteItem): TastingNote {
     palate: item.palate,
     finish: item.finish,
     rating: item.rating,
-    flavorTags: item.flavorTags,
+    flavorTags,
     createdAt: item.createdAt,
   }
 }

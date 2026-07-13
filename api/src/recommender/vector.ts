@@ -45,14 +45,15 @@ export function meanVector(vectors: number[][]): number[] | null {
 
 /**
  * A bottle as seen by the structured layer: its categorical metadata, its
- * aggregate flavor profile (may be absent if it has no notes), and abv.
+ * aggregate flavor profile (may be absent if it has no notes, and may be
+ * missing axes no note has measured), and abv.
  */
 export interface StructuredBottle {
   id: string
   region: string
   type: string
   abv: number
-  flavorProfile: FlavorTags | null
+  flavorProfile: Partial<FlavorTags> | null
 }
 
 /**
@@ -82,25 +83,26 @@ function oneHot(value: string, vocab: string[]): number[] {
   return vocab.map((v) => (v === value ? 1 : 0))
 }
 
-// ABV realistically spans ~0 (wine) to ~65 (cask-strength); scale into ~[0,1]
-// so it contributes on the same order as the one-hot and flavor dims rather
-// than dominating them.
-const ABV_SCALE = 65
+// ABV realistically spans 0 (coffee) to ~90 (historic-strength absinthe);
+// scale into ~[0,1] so it contributes on the same order as the one-hot and
+// flavor dims rather than dominating them.
+const ABV_SCALE = 90
 
 // Flavor axes are 0..5; divide so each lands in [0,1].
 const FLAVOR_SCALE = 5
 
 /**
- * Feature-vector a bottle: [regions one-hot | types one-hot | 5 flavor dims |
+ * Feature-vector a bottle: [regions one-hot | types one-hot | 8 flavor dims |
  * abv]. Bottles with no flavor profile get a neutral mid-scale flavor block so
- * they still rank on region/type/abv rather than being pushed to an extreme.
+ * they still rank on region/type/abv rather than being pushed to an extreme;
+ * an axis missing from a partial profile (no note measured it) gets the same
+ * neutral value rather than a false zero.
  */
 export function vectorize(bottle: StructuredBottle, vocab: Vocab): number[] {
-  const flavor = FLAVOR_AXES.map((axis) =>
-    bottle.flavorProfile
-      ? bottle.flavorProfile[axis] / FLAVOR_SCALE
-      : 0.5, // neutral: the midpoint of the 0..5 range, scaled
-  )
+  const flavor = FLAVOR_AXES.map((axis) => {
+    const v = bottle.flavorProfile?.[axis]
+    return v === undefined ? 0.5 : v / FLAVOR_SCALE
+  })
   return [
     ...oneHot(bottle.region, vocab.regions),
     ...oneHot(bottle.type, vocab.types),

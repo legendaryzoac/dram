@@ -1,7 +1,7 @@
 {
   "name": "dram — tasting log & recommender",
   "short_name": "dram",
-  "description": "Whiskey & wine tasting log with a layered recommender",
+  "description": "Whisky, wine & coffee tasting log with a layered recommender",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d1117",

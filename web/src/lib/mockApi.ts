@@ -1,14 +1,16 @@
 /**
  * In-memory mock backend implementing the FULL frozen contract. Seeded with a
- * dozen realistic bottles (scotch / bourbon / rye / Irish / wine), each with
- * 1–3 tasting notes, a flavor profile, and ratings. POSTs mutate the store, so
+ * cabinet of realistic bottles (scotch / bourbon / rye / Irish / agave / rum /
+ * gin / absinthe / cognac / wine) plus a shelf of coffees, each with 1–3
+ * tasting notes, a flavor profile, and ratings. POSTs mutate the store, so
  * adding a bottle or note is visible immediately and recommendations recompute
  * live off the current data.
  *
  * Recommendation results are derived: mostly `basis:"structured"` from the
  * shared similarity math, with a couple carrying `narration` (to demo the
  * layer-3 narrated experience) and one flagged `degraded:true` (to demo the
- * fallback banner).
+ * fallback banner). The main list stays within the target's family; the
+ * `crossFamily` picks bridge coffee ↔ the cabinet.
  */
 import type {
   Bottle,
@@ -19,21 +21,17 @@ import type {
   RecommendationResult,
   TastingNote,
 } from './types'
+import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf } from './types'
 import type { DramApi } from './api'
 import { ApiError } from './api'
-import { rankBySimilarity } from './recommend'
+import { rankBySimilarity, type ScoredBottle } from './recommend'
 
 const NOW = Date.parse('2026-06-01T12:00:00Z')
 const DAY = 86_400_000
 
-function flavor(
-  sweet: number,
-  smoky: number,
-  fruity: number,
-  oaky: number,
-  spicy: number,
-): FlavorTags {
-  return { sweet, smoky, fruity, oaky, spicy }
+/** Build a full 8-axis profile from the axes worth mentioning; rest are 0. */
+function flavor(tags: Partial<FlavorTags>): FlavorTags {
+  return { ...EMPTY_FLAVOR, ...tags }
 }
 
 /** Average of a bottle's note ratings, rounded to 1dp; null when noteless. */
@@ -46,22 +44,12 @@ function avg(notes: TastingNote[]): number | null {
 /** Mean flavor profile across a bottle's notes; null when noteless. */
 function meanProfile(notes: TastingNote[]): FlavorTags | null {
   if (notes.length === 0) return null
-  const acc = flavor(0, 0, 0, 0, 0)
-  for (const n of notes) {
-    acc.sweet += n.flavorTags.sweet
-    acc.smoky += n.flavorTags.smoky
-    acc.fruity += n.flavorTags.fruity
-    acc.oaky += n.flavorTags.oaky
-    acc.spicy += n.flavorTags.spicy
+  const out = { ...EMPTY_FLAVOR }
+  for (const axis of FLAVOR_AXES) {
+    const sum = notes.reduce((a, n) => a + n.flavorTags[axis], 0)
+    out[axis] = Math.round((sum / notes.length) * 10) / 10
   }
-  const r = (x: number) => Math.round((x / notes.length) * 10) / 10
-  return flavor(
-    r(acc.sweet),
-    r(acc.smoky),
-    r(acc.fruity),
-    r(acc.oaky),
-    r(acc.spicy),
-  )
+  return out
 }
 
 interface Seed {
@@ -72,7 +60,7 @@ interface Seed {
   notes: Array<Omit<TastingNote, 'id' | 'bottleId' | 'createdAt'>>
 }
 
-/** Twelve bottles that tell a coherent tasting story across the categories. */
+/** Twenty-one pours that tell a coherent tasting story across the families. */
 const SEEDS: Seed[] = [
   {
     bottle: {
@@ -91,14 +79,14 @@ const SEEDS: Seed[] = [
         palate: 'Huge peat smoke, seaweed, tar, and dried fruit underneath.',
         finish: 'Long, medicinal, smoke that will not quit.',
         rating: 9,
-        flavorTags: flavor(1, 5, 2, 3, 3),
+        flavorTags: flavor({ sweet: 1, smoky: 5, fruity: 2, oaky: 3, spicy: 3, acidity: 1, body: 4 }),
       },
       {
         nose: 'Bonfire embers and a touch of sweet sherry.',
         palate: 'Smoky and rich, brine and dark chocolate.',
         finish: 'Warming, ashy, very long.',
         rating: 9,
-        flavorTags: flavor(2, 5, 2, 3, 2),
+        flavorTags: flavor({ sweet: 2, smoky: 5, fruity: 2, oaky: 3, spicy: 2, acidity: 1, body: 5 }),
       },
     ],
   },
@@ -119,7 +107,7 @@ const SEEDS: Seed[] = [
         palate: 'Aggressive peat, black pepper, and green fruit.',
         finish: 'Espresso and smoke, bone dry.',
         rating: 9,
-        flavorTags: flavor(1, 5, 3, 2, 4),
+        flavorTags: flavor({ sweet: 1, smoky: 5, fruity: 3, oaky: 2, spicy: 4, floral: 1, acidity: 2, body: 3 }),
       },
     ],
   },
@@ -140,14 +128,14 @@ const SEEDS: Seed[] = [
         palate: 'Light, malty, orchard fruit and a whisper of vanilla.',
         finish: 'Short, clean, gently sweet.',
         rating: 7,
-        flavorTags: flavor(3, 0, 4, 2, 1),
+        flavorTags: flavor({ sweet: 3, fruity: 4, oaky: 2, spicy: 1, floral: 2, acidity: 2, body: 2 }),
       },
       {
         nose: 'Green apple and honeysuckle.',
         palate: 'Delicate, creamy, subtle spice.',
         finish: 'Mellow and fruity.',
         rating: 6,
-        flavorTags: flavor(3, 0, 4, 2, 1),
+        flavorTags: flavor({ sweet: 3, fruity: 4, oaky: 2, spicy: 1, floral: 3, acidity: 2, body: 2 }),
       },
     ],
   },
@@ -168,7 +156,7 @@ const SEEDS: Seed[] = [
         palate: 'Rich, raisiny, oaky, warm holiday spice.',
         finish: 'Long, sweet, drying oak.',
         rating: 8,
-        flavorTags: flavor(4, 1, 4, 4, 3),
+        flavorTags: flavor({ sweet: 4, smoky: 1, fruity: 4, oaky: 4, spicy: 3, floral: 1, acidity: 1, body: 4 }),
       },
     ],
   },
@@ -189,14 +177,14 @@ const SEEDS: Seed[] = [
         palate: 'Brown sugar, toffee, oak, and baking spice.',
         finish: 'Medium, sweet, warm.',
         rating: 8,
-        flavorTags: flavor(4, 1, 2, 4, 3),
+        flavorTags: flavor({ sweet: 4, smoky: 1, fruity: 2, oaky: 4, spicy: 3, acidity: 1, body: 3 }),
       },
       {
         nose: 'Corn sweetness and candied orange.',
         palate: 'Smooth caramel with a peppery kick.',
         finish: 'Clean and moreish.',
         rating: 8,
-        flavorTags: flavor(4, 0, 2, 3, 3),
+        flavorTags: flavor({ sweet: 4, fruity: 2, oaky: 3, spicy: 3, acidity: 1, body: 3 }),
       },
     ],
   },
@@ -217,7 +205,7 @@ const SEEDS: Seed[] = [
         palate: 'Sweet and gentle, no rye bite, honeyed oak.',
         finish: 'Smooth and short.',
         rating: 7,
-        flavorTags: flavor(5, 0, 2, 3, 1),
+        flavorTags: flavor({ sweet: 5, fruity: 2, oaky: 3, spicy: 1, floral: 1, body: 3 }),
       },
     ],
   },
@@ -238,7 +226,7 @@ const SEEDS: Seed[] = [
         palate: 'Dry oak, dark caramel, cocoa, and herbs.',
         finish: 'Long, dry, and complex.',
         rating: 9,
-        flavorTags: flavor(3, 1, 3, 5, 3),
+        flavorTags: flavor({ sweet: 3, smoky: 1, fruity: 3, oaky: 5, spicy: 3, acidity: 1, body: 4 }),
       },
     ],
   },
@@ -259,14 +247,14 @@ const SEEDS: Seed[] = [
         palate: 'Bold cinnamon, pepper, and a dried-fruit core.',
         finish: 'Hot, spicy, and long.',
         rating: 8,
-        flavorTags: flavor(3, 1, 2, 3, 5),
+        flavorTags: flavor({ sweet: 3, smoky: 1, fruity: 2, oaky: 3, spicy: 5, acidity: 1, body: 3 }),
       },
       {
         nose: 'Baking spice and toasted grain.',
         palate: 'Peppery and full, caramel underneath.',
         finish: 'Warming spice.',
         rating: 8,
-        flavorTags: flavor(2, 1, 2, 3, 5),
+        flavorTags: flavor({ sweet: 2, smoky: 1, fruity: 2, oaky: 3, spicy: 5, acidity: 1, body: 3 }),
       },
     ],
   },
@@ -287,7 +275,7 @@ const SEEDS: Seed[] = [
         palate: 'Rich rye spice, allspice, and toasted oak.',
         finish: 'Long, warming, and elegant.',
         rating: 9,
-        flavorTags: flavor(3, 0, 3, 4, 5),
+        flavorTags: flavor({ sweet: 3, fruity: 3, oaky: 4, spicy: 5, floral: 1, acidity: 1, body: 4 }),
       },
     ],
   },
@@ -308,7 +296,139 @@ const SEEDS: Seed[] = [
         palate: 'Creamy pot-still spice, nuts, and dried fruit.',
         finish: 'Long, oily, and satisfying.',
         rating: 9,
-        flavorTags: flavor(4, 0, 4, 3, 3),
+        flavorTags: flavor({ sweet: 4, fruity: 4, oaky: 3, spicy: 3, floral: 1, acidity: 1, body: 4 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'b-fortaleza-blanco',
+      name: 'Fortaleza Blanco',
+      producer: 'Tequila Los Abuelos',
+      region: 'Jalisco',
+      type: 'tequila',
+      style: 'blanco',
+      abv: 40,
+      price: 62,
+      createdAtDaysAgo: 21,
+    },
+    notes: [
+      {
+        nose: 'Cooked agave, lime peel, and olive brine.',
+        palate: 'Buttery agave, white pepper, and bright citrus.',
+        finish: 'Clean, peppery, gently sweet.',
+        rating: 9,
+        flavorTags: flavor({ sweet: 2, fruity: 3, spicy: 3, floral: 2, acidity: 3, body: 2 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'b-del-maguey-vida',
+      name: 'Del Maguey Vida',
+      producer: 'Del Maguey',
+      region: 'Oaxaca',
+      type: 'mezcal',
+      style: 'espadín',
+      abv: 42,
+      price: 38,
+      createdAtDaysAgo: 19,
+    },
+    notes: [
+      {
+        nose: 'Roasted agave, campfire embers, and green apple.',
+        palate: 'Earthy smoke, tropical fruit, and black pepper.',
+        finish: 'Smoky, mineral, medium-long.',
+        rating: 8,
+        flavorTags: flavor({ sweet: 1, smoky: 4, fruity: 2, oaky: 1, spicy: 3, floral: 1, acidity: 2, body: 2 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'b-appleton-12',
+      name: 'Appleton Estate 12',
+      producer: 'Appleton Estate',
+      region: 'Jamaica',
+      type: 'rum',
+      style: 'aged pot still',
+      abv: 43,
+      price: 45,
+      createdAtDaysAgo: 16,
+    },
+    notes: [
+      {
+        nose: 'Ripe banana, orange peel, and warm oak.',
+        palate: 'Molasses, dried apricot, baking spice, and a funky edge.',
+        finish: 'Long, oaky, gently sweet.',
+        rating: 8,
+        flavorTags: flavor({ sweet: 4, fruity: 4, oaky: 3, spicy: 2, floral: 1, acidity: 2, body: 3 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'b-monkey-47',
+      name: 'Monkey 47',
+      producer: 'Black Forest Distillers',
+      region: 'Black Forest',
+      type: 'gin',
+      style: 'dry gin',
+      abv: 47,
+      price: 70,
+      createdAtDaysAgo: 14,
+    },
+    notes: [
+      {
+        nose: 'A herb garden — juniper, lavender, and citrus zest.',
+        palate: 'Piney and floral, cracked pepper, bright lime.',
+        finish: 'Crisp, botanical, long.',
+        rating: 8,
+        flavorTags: flavor({ sweet: 1, fruity: 3, spicy: 2, floral: 5, acidity: 4, body: 2 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'b-st-george-absinthe',
+      name: 'St. George Absinthe Verte',
+      producer: 'St. George Spirits',
+      region: 'California',
+      type: 'absinthe',
+      style: 'verte',
+      abv: 60,
+      price: 65,
+      createdAtDaysAgo: 11,
+    },
+    notes: [
+      {
+        nose: 'Star anise, fennel, and fresh mint.',
+        palate: 'Louche and silky — anise, basil, and a cool herbal sweetness.',
+        finish: 'Long, numbing, garden-fresh.',
+        rating: 7,
+        flavorTags: flavor({ sweet: 2, fruity: 1, spicy: 3, floral: 4, acidity: 1, body: 3 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'b-ferrand-1840',
+      name: 'Pierre Ferrand 1840',
+      producer: 'Maison Ferrand',
+      region: 'Cognac',
+      type: 'cognac',
+      style: '1840 formula',
+      abv: 45,
+      price: 50,
+      createdAtDaysAgo: 9,
+    },
+    notes: [
+      {
+        nose: 'Baked apricot, honey, and toasted oak.',
+        palate: 'Rich orchard fruit, vanilla, and gentle rancio.',
+        finish: 'Warm, fruity, drying oak.',
+        rating: 8,
+        flavorTags: flavor({ sweet: 4, fruity: 4, oaky: 3, spicy: 2, floral: 2, acidity: 2, body: 3 }),
       },
     ],
   },
@@ -330,7 +450,7 @@ const SEEDS: Seed[] = [
         palate: 'Plush dark fruit, mocha, and soft tannins.',
         finish: 'Long, velvety, and sweet-edged.',
         rating: 8,
-        flavorTags: flavor(4, 0, 5, 4, 2),
+        flavorTags: flavor({ sweet: 4, fruity: 5, oaky: 4, spicy: 2, floral: 1, acidity: 3, body: 5 }),
       },
     ],
   },
@@ -352,14 +472,90 @@ const SEEDS: Seed[] = [
         palate: 'Crisp, zesty citrus and gooseberry.',
         finish: 'Bright, clean, mouth-watering.',
         rating: 7,
-        flavorTags: flavor(2, 0, 5, 1, 1),
+        flavorTags: flavor({ sweet: 2, fruity: 5, oaky: 1, spicy: 1, floral: 3, acidity: 5, body: 1 }),
       },
       {
         nose: 'Grapefruit and green herbs.',
         palate: 'Racy acidity, tropical fruit.',
         finish: 'Zippy and fresh.',
         rating: 7,
-        flavorTags: flavor(2, 0, 5, 0, 1),
+        flavorTags: flavor({ sweet: 2, fruity: 5, spicy: 1, floral: 2, acidity: 5, body: 1 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'c-yirgacheffe',
+      name: 'Ethiopia Yirgacheffe',
+      producer: 'Counter Culture Coffee',
+      region: 'Yirgacheffe, Ethiopia',
+      type: 'coffee',
+      roast: 'light',
+      process: 'washed',
+      abv: 0,
+      price: 19,
+      createdAtDaysAgo: 5,
+    },
+    notes: [
+      {
+        nose: 'Jasmine, bergamot, and lemon blossom.',
+        palate: 'Silky black tea, lemon curd, white peach, sparkling acidity.',
+        finish: 'Clean, floral, lingering citrus.',
+        rating: 9,
+        flavorTags: flavor({ sweet: 3, fruity: 4, floral: 5, acidity: 5, body: 1 }),
+      },
+      {
+        nose: 'Honeysuckle and stone fruit.',
+        palate: 'Delicate and tea-like, apricot sweetness.',
+        finish: 'Crisp and bright.',
+        rating: 8,
+        flavorTags: flavor({ sweet: 3, fruity: 4, floral: 4, acidity: 4, body: 1 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'c-huila',
+      name: 'Colombia Huila',
+      producer: 'Intelligentsia',
+      region: 'Huila, Colombia',
+      type: 'coffee',
+      roast: 'medium',
+      process: 'washed',
+      abv: 0,
+      price: 17,
+      createdAtDaysAgo: 3,
+    },
+    notes: [
+      {
+        nose: 'Caramel, red apple, and a little cocoa.',
+        palate: 'Round and sweet — toffee, milk chocolate, gentle citrus.',
+        finish: 'Smooth, sweet, medium length.',
+        rating: 8,
+        flavorTags: flavor({ sweet: 4, fruity: 3, floral: 1, acidity: 3, body: 3, oaky: 1, spicy: 1 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'c-sumatra',
+      name: 'Sumatra Mandheling',
+      producer: 'Blue Bottle Coffee',
+      region: 'Sumatra, Indonesia',
+      type: 'coffee',
+      roast: 'dark',
+      process: 'wet-hulled',
+      abv: 0,
+      price: 18,
+      createdAtDaysAgo: 1,
+    },
+    notes: [
+      {
+        nose: 'Dark chocolate, cedar, and pipe tobacco.',
+        palate: 'Heavy and earthy — bittersweet cocoa, molasses, a curl of smoke.',
+        finish: 'Long, resinous, smoky.',
+        rating: 7,
+        flavorTags: flavor({ sweet: 2, fruity: 1, acidity: 1, body: 5, oaky: 3, smoky: 3, spicy: 2 }),
       },
     ],
   },
@@ -421,12 +617,22 @@ function requireToken(token: string): void {
   if (!token) throw new ApiError(401, 'Authentication required')
 }
 
+/** Trim an optional/nullable per-type field: null/blank clears to undefined. */
+function optField(
+  v: string | null | undefined,
+  prev?: string,
+): string | undefined {
+  if (v === undefined) return prev
+  const t = v === null ? '' : v.trim()
+  return t === '' ? undefined : t
+}
+
 /**
  * Narration + degraded flavour for specific bottles, so the detail page can
  * demo all three recommendation bases without a live model. Everything else
  * comes back as plain `structured`.
  */
-const NARRATED = new Set(['b-lagavulin-16', 'b-redbreast-12'])
+const NARRATED = new Set(['b-lagavulin-16', 'b-redbreast-12', 'c-yirgacheffe'])
 const DEGRADED = new Set(['b-cloudy-bay-sb'])
 
 function narrationFor(bottle: Bottle, recs: Recommendation[]): string | null {
@@ -441,6 +647,15 @@ function narrationFor(bottle: Bottle, recs: Recommendation[]): string | null {
         `(${second.reason.toLowerCase()}) while shifting the emphasis.`
       : '')
   ).trim()
+}
+
+function toRecommendation(r: ScoredBottle): Recommendation {
+  return {
+    bottleId: r.bottle.id,
+    name: r.bottle.name,
+    score: Math.round(r.score * 100) / 100,
+    reason: r.reason,
+  }
 }
 
 export function makeMockApi(): DramApi {
@@ -476,7 +691,10 @@ export function makeMockApi(): DramApi {
         type: input.type,
         abv: input.abv,
         price: input.price ?? null,
-        grape: input.grape?.trim() ? input.grape.trim() : undefined,
+        grape: optField(input.grape),
+        style: optField(input.style),
+        roast: optField(input.roast),
+        process: optField(input.process),
         createdAt: new Date().toISOString(),
         avgRating: null,
         flavorProfile: null,
@@ -494,8 +712,16 @@ export function makeMockApi(): DramApi {
       if (!existing) throw new ApiError(404, `No bottle ${id}`)
       const updated: Bottle = {
         ...existing,
-        ...input,
-        price: input.price === undefined ? existing.price : input.price ?? null,
+        name: input.name ?? existing.name,
+        producer: input.producer ?? existing.producer,
+        region: input.region ?? existing.region,
+        type: input.type ?? existing.type,
+        abv: input.abv ?? existing.abv,
+        price: input.price === undefined ? existing.price : (input.price ?? null),
+        grape: optField(input.grape, existing.grape),
+        style: optField(input.style, existing.style),
+        roast: optField(input.roast, existing.roast),
+        process: optField(input.process, existing.process),
       }
       store.bottles.set(id, updated)
       return updated
@@ -536,16 +762,21 @@ export function makeMockApi(): DramApi {
       const target = store.bottles.get(bottleId)
       if (!target) throw new ApiError(404, `No bottle ${bottleId}`)
 
-      const ranked = rankBySimilarity(target, [...store.bottles.values()])
+      const family = familyOf(target.type)
+      const all = [...store.bottles.values()]
+      const sameFamily = all.filter((b) => familyOf(b.type) === family)
+      const otherFamily = all.filter((b) => familyOf(b.type) !== family)
+
+      // Contract: main list <= 5, crossFamily <= 3 (mirrors the real API).
+      const recommendations = rankBySimilarity(target, sameFamily)
+        .slice(0, 5)
+        .filter((r) => r.score > 0)
+        .map(toRecommendation)
+
+      const crossFamily = rankBySimilarity(target, otherFamily)
         .slice(0, 3)
         .filter((r) => r.score > 0)
-
-      const recommendations: Recommendation[] = ranked.map((r) => ({
-        bottleId: r.bottle.id,
-        name: r.bottle.name,
-        score: Math.round(r.score * 100) / 100,
-        reason: r.reason,
-      }))
+        .map(toRecommendation)
 
       const degraded = DEGRADED.has(bottleId)
       const narration = degraded ? null : narrationFor(target, recommendations)
@@ -560,6 +791,7 @@ export function makeMockApi(): DramApi {
       return {
         basis,
         recommendations,
+        crossFamily,
         narration,
         degraded,
       } satisfies RecommendationResult

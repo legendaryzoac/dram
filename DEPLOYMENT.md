@@ -31,22 +31,32 @@ functional without it.
 ## 2. Enable Bedrock model access (one-time, unlocks layers 2 & 3)
 
 The recommender degrades gracefully: with no Bedrock access it runs the structured
-cosine layer and every response carries `degraded:true`. To turn on the text-embedding
-and Haiku-narration layers:
+cosine layer and every response carries `degraded:true`. Turning on the text-embedding
+and Haiku-narration layers is **two different tracks**, not one click — this asymmetry is
+normal and expected:
 
-- [ ] Open the **Amazon Bedrock console in us-east-1** →
-      **Model access** → **Manage model access** (a.k.a. "Enable specific models").
-- [ ] Request/enable access for:
-      - **Amazon → Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) — used
-        to embed each tasting note on write (512-dim vector, stored on the note item).
-      - **Anthropic → Claude Haiku 4.5** — narration layer. Invoked via the US
-        cross-region **inference profile** `us.anthropic.claude-haiku-4-5-20251001-v1:0`
-        (the on-demand path for current Claude models). Enabling the Anthropic model in
-        the console covers the profile; the Lambda's IAM already allows `InvokeModel` on
-        the profile and its underlying foundation models in us-east-1 / us-east-2 /
-        us-west-2.
-- [ ] Amazon models activate immediately; Anthropic may take a few minutes. No
-      redeploy is needed — the Lambda picks up access on the next call.
+- [ ] **Amazon → Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) — used to
+      embed each tasting note on write (512-dim vector, stored on the note item). Amazon
+      first-party models are **enabled by default** in all commercial regions (given the
+      AWS Marketplace permissions), so this typically shows as already granted with
+      nothing to do. It embeds notes for layer 2 (the structured-cosine text layer).
+- [ ] **Anthropic → Claude Haiku 4.5** — narration layer (layer 3). Invoked via the US
+      cross-region **inference profile** `us.anthropic.claude-haiku-4-5-20251001-v1:0`.
+      Anthropic gates first-time access: before you can invoke, you must **accept
+      Anthropic's EULA and submit a use-case form** (company/website — a GitHub or
+      portfolio URL is fine — plus a use-case description). Open the **Amazon Bedrock
+      console → Model access → Modify model access**, add the Anthropic model, and choose
+      **Submit use case details**. This is a **one-time-per-account** gate (inherited by
+      the whole AWS Organization, across all commercial regions), *not* per-model or
+      per-region. Access is granted **immediately on successful submission** — no waiting
+      period.
+- [ ] The cross-region inference profile does **not** need access re-granted per routed
+      region: the one account-level Anthropic agreement covers invocation through the
+      profile in us-east-1 / us-east-2 / us-west-2. The Lambda's IAM already allows
+      `InvokeModel` on the profile and its underlying foundation models in those regions.
+      (Verified 2026-07-05: Titan embed and the Haiku US inference profile both invoke
+      successfully from this account — layer 3 is live. No redeploy needed; the Lambda
+      picks up access on the next call.)
 
 **How degradation behaves after this:**
 - Notes written *before* Titan was enabled have no embedding and are excluded from the
@@ -96,6 +106,23 @@ authenticating via the `AWS_ROLE_ARN` OIDC role.
 - **Infra changes** (this workspace or `api/`): `npm run deploy -w infra` locally
   (`npm run -w infra diff` first to preview). Lambda code changes ship with the infra
   deploy — the API is bundled from `api/src/handler.ts` by CDK/esbuild.
+
+### Contract changes: deploy the API first, then push the web
+
+The two pipelines are independent, so a push to `main` ships the new web against
+whatever Lambda is currently deployed. For changes that grow the wire contract (like
+the 8-axis flavor expansion + coffee/`style`/`roast`/`process` fields), do it in this
+order:
+
+1. `npm run deploy -w infra` — the new Lambda accepts both old and new payloads
+   (5-axis notes from stale PWA clients are still valid; new axes are optional).
+2. Then push to `main` to ship the web.
+
+Reversed, the window is read-safe but **write-lossy**: the old Lambda whitelists
+request fields, so a coffee's `roast`/`process`, a spirit's `style`, and the three new
+flavor axes on notes are silently dropped at write time (HTTP 200, value never stored,
+unrecoverable after redeploy). The new web tolerates old-API *reads* (missing
+`crossFamily`, 5-axis profiles) by design.
 
 ## Inviting a user (you + a few friends)
 

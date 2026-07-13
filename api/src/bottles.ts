@@ -97,8 +97,12 @@ export async function handleCreateBottle(
   if (price !== null && (price === undefined || price < 0)) {
     return json(400, { error: 'price must be a non-negative number or null' }, origin)
   }
-  // Optional, additive. Undefined when absent/blank so DDB stores nothing.
+  // Optional per-type fields, additive. Undefined when absent/blank/null so
+  // DDB stores nothing.
   const grape = r.grape === undefined ? undefined : str(r.grape, 120)
+  const style = r.style === undefined ? undefined : str(r.style, 120)
+  const roast = r.roast === undefined ? undefined : str(r.roast, 120)
+  const process = r.process === undefined ? undefined : str(r.process, 120)
 
   const id = randomUUID()
   const item: BottleItem = {
@@ -113,6 +117,9 @@ export async function handleCreateBottle(
     abv,
     price,
     grape,
+    style,
+    roast,
+    process,
     createdAt: new Date().toISOString(),
   }
   await putBottle(item)
@@ -174,9 +181,19 @@ export async function handleUpdateBottle(
       next.price = v
     }
   }
+  // Per-type optional fields: empty/blank or null clears; otherwise the
+  // trimmed value is set.
   if (r.grape !== undefined) {
-    // Empty/blank or null clears it; otherwise set the trimmed value.
     next.grape = r.grape === null ? undefined : str(r.grape, 120)
+  }
+  if (r.style !== undefined) {
+    next.style = r.style === null ? undefined : str(r.style, 120)
+  }
+  if (r.roast !== undefined) {
+    next.roast = r.roast === null ? undefined : str(r.roast, 120)
+  }
+  if (r.process !== undefined) {
+    next.process = r.process === null ? undefined : str(r.process, 120)
   }
 
   await putBottle(next)

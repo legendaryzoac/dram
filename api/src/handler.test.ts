@@ -171,7 +171,10 @@ describe('handler routing', () => {
             palate: 'sweet sherry and brine',
             finish: 'long, smoky',
             rating: 9,
-            flavorTags: { sweet: 3, smoky: 5, fruity: 2, oaky: 3, spicy: 2 },
+            flavorTags: {
+              sweet: 3, smoky: 5, fruity: 2, oaky: 3, spicy: 2,
+              floral: 0, acidity: 1, body: 4,
+            },
           },
         }),
       ),
@@ -189,8 +192,144 @@ describe('handler routing', () => {
     expect(got.body.bottle.avgRating).toBe(9)
     expect(got.body.bottle.flavorProfile).toEqual({
       sweet: 3, smoky: 5, fruity: 2, oaky: 3, spicy: 2,
+      floral: 0, acidity: 1, body: 4,
     })
     expect(got.body.notes).toHaveLength(1)
+  })
+
+  it('accepts a legacy five-axis note and averages new axes only over notes that measured them', async () => {
+    const created = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: { name: 'Redbreast 12', producer: 'Midleton', region: 'Ireland', type: 'irish', abv: 40 },
+        }),
+      ),
+    )
+    const id = created.body.id
+
+    // A pre-expansion client sends only the core five axes — still accepted.
+    const legacy = parse(
+      await handler(
+        makeEvent('POST /bottles/{id}/notes', {
+          authed: true,
+          pathParameters: { id },
+          body: {
+            nose: 'sherry', palate: 'creamy', finish: 'long', rating: 8,
+            flavorTags: { sweet: 4, smoky: 0, fruity: 4, oaky: 3, spicy: 3 },
+          },
+        }),
+      ),
+    )
+    expect(legacy.status).toBe(200)
+    // The wire note is always a complete FlavorTags (missing axes read 0).
+    expect(legacy.body.flavorTags.acidity).toBe(0)
+
+    // A current client sends all eight.
+    await handler(
+      makeEvent('POST /bottles/{id}/notes', {
+        authed: true,
+        pathParameters: { id },
+        body: {
+          nose: 'marzipan', palate: 'pot still spice', finish: 'oily', rating: 9,
+          flavorTags: {
+            sweet: 4, smoky: 0, fruity: 4, oaky: 3, spicy: 3,
+            floral: 1, acidity: 2, body: 4,
+          },
+        },
+      }),
+    )
+
+    const got = parse(
+      await handler(makeEvent('GET /bottles/{id}', { pathParameters: { id } })),
+    )
+    // Core axes average over both notes; the newer axes average only over the
+    // note that measured them — not dragged down by the legacy note.
+    expect(got.body.bottle.flavorProfile).toEqual({
+      sweet: 4, smoky: 0, fruity: 4, oaky: 3, spicy: 3,
+      floral: 1, acidity: 2, body: 4,
+    })
+  })
+
+  it('rejects a note missing a core axis', async () => {
+    const created = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: { name: 'x', producer: 'p', region: 'r', type: 't', abv: 40 },
+        }),
+      ),
+    )
+    const res = parse(
+      await handler(
+        makeEvent('POST /bottles/{id}/notes', {
+          authed: true,
+          pathParameters: { id: created.body.id },
+          body: {
+            nose: 'n', palate: 'p', finish: 'f', rating: 7,
+            flavorTags: { sweet: 3, smoky: 5, fruity: 2, oaky: 3 }, // no spicy
+          },
+        }),
+      ),
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('stores and returns per-type fields (style / roast / process)', async () => {
+    const coffee = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: {
+            name: 'Ethiopia Yirgacheffe', producer: 'Counter Culture',
+            region: 'Yirgacheffe, Ethiopia', type: 'coffee', abv: 0,
+            roast: 'light', process: 'washed',
+          },
+        }),
+      ),
+    )
+    expect(coffee.status).toBe(200)
+    expect(coffee.body).toMatchObject({ roast: 'light', process: 'washed' })
+
+    const updated = parse(
+      await handler(
+        makeEvent('PUT /bottles/{id}', {
+          authed: true,
+          pathParameters: { id: coffee.body.id },
+          body: { roast: 'medium', process: null },
+        }),
+      ),
+    )
+    expect(updated.status).toBe(200)
+    expect(updated.body.roast).toBe('medium')
+    expect(updated.body.process).toBeUndefined()
+
+    // Each per-type field clears independently via null (grape/style too).
+    const tequila = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: {
+            name: 'Fortaleza Reposado', producer: 'Los Abuelos',
+            region: 'Jalisco', type: 'tequila', abv: 40,
+            style: 'reposado', grape: 'stray value',
+          },
+        }),
+      ),
+    )
+    expect(tequila.body).toMatchObject({ style: 'reposado', grape: 'stray value' })
+    const cleared = parse(
+      await handler(
+        makeEvent('PUT /bottles/{id}', {
+          authed: true,
+          pathParameters: { id: tequila.body.id },
+          body: { style: null, grape: null },
+        }),
+      ),
+    )
+    expect(cleared.status).toBe(200)
+    expect(cleared.body.style).toBeUndefined()
+    expect(cleared.body.grape).toBeUndefined()
   })
 
   it('DELETE /bottles/{id} with auth -> 204', async () => {
@@ -235,5 +374,30 @@ describe('handler routing', () => {
     // narration attempt failing.
     expect(res.body.basis).toBe('structured')
     expect(res.body.recommendations.length).toBeGreaterThan(0)
+  })
+
+  it('recommendations stay in-family and surface the other family via crossFamily', async () => {
+    for (const body of [
+      { name: 'Lagavulin 16', producer: 'p', region: 'Islay', type: 'scotch', abv: 43 },
+      { name: 'Ardbeg 10', producer: 'p', region: 'Islay', type: 'scotch', abv: 46 },
+      { name: 'Sumatra', producer: 'p', region: 'Indonesia', type: 'coffee', abv: 0 },
+    ]) {
+      await handler(makeEvent('POST /bottles', { authed: true, body }))
+    }
+    const list = parse(await handler(makeEvent('GET /bottles')))
+    const scotch = list.body.find((b: { type: string }) => b.type === 'scotch')
+    const res = parse(
+      await handler(
+        makeEvent('GET /bottles/{id}/recommendations', {
+          pathParameters: { id: scotch.id },
+        }),
+      ),
+    )
+    expect(res.status).toBe(200)
+    const names = res.body.recommendations.map((r: { name: string }) => r.name)
+    expect(names).not.toContain('Sumatra')
+    expect(res.body.crossFamily.map((r: { name: string }) => r.name)).toEqual([
+      'Sumatra',
+    ])
   })
 })

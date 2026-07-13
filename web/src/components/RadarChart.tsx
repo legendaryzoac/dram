@@ -1,6 +1,6 @@
 /**
- * D3-driven flavor radar. The five axes (sweet/smoky/fruity/oaky/spicy) are
- * placed on a regular pentagon; the profile is drawn as a filled polygon.
+ * D3-driven flavor radar. The FLAVOR_AXES (eight shared tasting axes) are
+ * placed on a regular polygon; the profile is drawn as a filled shape.
  *
  * React owns the SVG DOM; D3 provides the geometry helpers and the line
  * generator for the grid rings. `radarGeometry` (unit-tested, DOM-free)
