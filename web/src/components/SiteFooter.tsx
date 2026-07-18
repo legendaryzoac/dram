@@ -1,3 +1,4 @@
+import { href } from '../lib/router'
 import { useAuth } from './AuthContext'
 
 interface Props {
@@ -60,9 +61,11 @@ export default function SiteFooter({ note, onSignIn }: Props) {
   )
 }
 
-/** Compact account state: a sign-in link, or who's signed in + sign out. */
+/** Compact account state: a sign-in link, or account link + sign out. The
+ *  signed-in email lives on the account page, not here — the byline above
+ *  already shows the site contact address and shouldn't be echoed. */
 function AccountLine({ onSignIn }: { onSignIn: () => void }) {
-  const { mode, email, signOut } = useAuth()
+  const { mode, signOut } = useAuth()
   if (mode === 'signed-out') {
     return (
       <button
@@ -75,9 +78,12 @@ function AccountLine({ onSignIn }: { onSignIn: () => void }) {
   }
   return (
     <div className="mt-1 flex min-h-[28px] flex-wrap items-center gap-x-2">
-      <span className="opacity-60">
-        {mode === 'demo' ? 'demo mode' : email}
-      </span>
+      <a
+        href={href.account()}
+        className="text-accent-dim hover:text-accent transition-colors"
+      >
+        account
+      </a>
       <span className="opacity-40" aria-hidden>
         ·
       </span>

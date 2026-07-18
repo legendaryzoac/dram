@@ -82,6 +82,30 @@ export function rankBySimilarity(
     .sort((a, b) => b.score - a.score)
 }
 
+/**
+ * Rank bottles against a raw taste profile — e.g. the drinker's aggregate
+ * palate on the account hub — rather than against another bottle. Bottles
+ * without a flavor profile can't be compared and are excluded.
+ */
+export function rankByTasteProfile(
+  taste: FlavorTags,
+  candidates: Bottle[],
+): ScoredBottle[] {
+  const tasteVec = flavorVector(taste)
+  return candidates
+    .filter((b) => b.flavorProfile !== null)
+    .map((b) => {
+      const sim = cosine(tasteVec, flavorVector(b.flavorProfile!))
+      const shared = sharedFlavors(taste, b.flavorProfile!)
+      const reason =
+        shared.length > 0
+          ? `Matches your ${shared.slice(0, 2).join(' & ')} lean`
+          : 'Close to your overall palate'
+      return { bottle: b, score: clamp01(sim), reason }
+    })
+    .sort((a, b) => b.score - a.score)
+}
+
 function sharedFlavors(a: FlavorTags, b: FlavorTags): string[] {
   return FLAVOR_AXES.filter((axis) => a[axis] >= 3 && b[axis] >= 3)
 }

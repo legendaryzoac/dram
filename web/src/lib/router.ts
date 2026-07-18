@@ -5,6 +5,7 @@
  *
  *   #/                 -> bottle list (the cabinet — alcohol)
  *   #/coffee           -> coffee list (the coffee bar)
+ *   #/account          -> account hub (your notes, palate, picks)
  *   #/bottles/:id      -> bottle detail
  *   #/add              -> add-bottle form (defaults to a cabinet type)
  *   #/add/coffee       -> add-bottle form (defaults to coffee)
@@ -15,6 +16,7 @@ import type { BeverageFamily } from './types'
 
 export type Route =
   | { name: 'list'; family: BeverageFamily }
+  | { name: 'account' }
   | { name: 'detail'; id: string }
   | { name: 'add'; family: BeverageFamily }
   | { name: 'edit'; id: string }
@@ -25,6 +27,7 @@ export function parseHash(hash: string): Route {
 
   if (parts.length === 0) return { name: 'list', family: 'alcohol' }
   if (parts[0] === 'coffee') return { name: 'list', family: 'coffee' }
+  if (parts[0] === 'account') return { name: 'account' }
   if (parts[0] === 'add') {
     return { name: 'add', family: parts[1] === 'coffee' ? 'coffee' : 'alcohol' }
   }
@@ -61,6 +64,7 @@ export function navigate(to: string): void {
 export const href = {
   list: (family: BeverageFamily = 'alcohol') =>
     family === 'coffee' ? '#/coffee' : '#/',
+  account: () => '#/account',
   detail: (id: string) => `#/bottles/${id}`,
   add: (family: BeverageFamily = 'alcohol') =>
     family === 'coffee' ? '#/add/coffee' : '#/add',

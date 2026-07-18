@@ -4,6 +4,7 @@ import SiteFooter from './components/SiteFooter'
 import BottleList from './components/BottleList'
 import BottleDetail from './components/BottleDetail'
 import BottleForm from './components/BottleForm'
+import AccountPage from './components/AccountPage'
 import AuthModal from './components/AuthModal'
 import { AuthProvider } from './components/AuthContext'
 import { useRoute } from './lib/router'
@@ -27,6 +28,8 @@ function Routed({ onRequireAuth }: { onRequireAuth: () => void }) {
       return <BottleForm key={`add-${route.family}`} initialFamily={route.family} />
     case 'edit':
       return <BottleForm key={`edit-${route.id}`} editId={route.id} />
+    case 'account':
+      return <AccountPage onRequireAuth={onRequireAuth} />
     case 'list':
     default:
       // Keyed by family so hopping between the cabinet and the coffee bar
