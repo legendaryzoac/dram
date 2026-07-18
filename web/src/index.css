@@ -1,20 +1,24 @@
 @import "tailwindcss";
 
-/* Design tokens shared with zackwithers.com / interp / the adversarial
-   playground. Same dark, technical palette so dram reads as one family. */
+/* "Speakeasy" palette — dram deliberately departs from the cold technical
+   tokens of the sibling sites: warm near-black leather neutrals with a brass
+   accent and an oxblood secondary, so whiskey, wine, and coffee all read as
+   evening drinks in it. Token *names* still match the family so shared
+   components port unchanged. */
 @theme {
-  --color-site: #0d1117;
-  --color-panel: #161b22;
-  --color-panel-2: #1c2333;
-  --color-accent: #00e5cc;
-  --color-accent-dim: #00b8a3;
-  --color-fg: #f0f4f8;
-  --color-muted: #8892a4;
-  --color-line: #2a3346;
+  --color-site: #121110;
+  --color-panel: #1b1917;
+  --color-panel-2: #252220;
+  --color-accent: #d4af5e;
+  --color-accent-dim: #b3913f;
+  --color-fg: #f4f0e8;
+  --color-muted: #9d968a;
+  --color-line: #383430;
 
-  /* Warm accent — shared with interp's logit-lens shading; here it tints
-     the radar fill and the "spirit" flavor axes. */
-  --color-warm: #ffb454;
+  /* Oxblood secondary — radar fill, ratings, price, narration. Lifted a
+     shade from the swatch (#c15b50) to clear WCAG AA 4.5:1 for the small
+     text it colors on panel backgrounds. */
+  --color-warm: #cd695c;
 
   --font-display: "Space Grotesk", sans-serif;
   --font-body: "Inter", sans-serif;

@@ -4,8 +4,8 @@
   "description": "Whisky, wine & coffee tasting log with a layered recommender",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d1117",
-  "theme_color": "#0d1117",
+  "background_color": "#121110",
+  "theme_color": "#121110",
   "icons": [
     {
       "src": "/icon.svg",

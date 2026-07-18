@@ -1,8 +1,9 @@
 /**
  * Minimal app header. dram is used mostly as a phone app, so the top nav is
- * the brand ("zw ~ / dram", with dram linking home), the two family tabs
- * (cabinet / coffee), plus an optional live-backend badge — no cross-site
- * links. The SiteFooter keeps the external links (GitHub / LinkedIn / Email).
+ * the brand ("zw ~ / dram") on the left and the family switcher on the right:
+ * a joined segmented control (cabinet | coffee) whose halves are full-height
+ * ≥44px tap targets, plus an optional live-backend badge on wider screens.
+ * The SiteFooter keeps the external links (GitHub / LinkedIn / Email).
  */
 import type { BeverageFamily } from '../lib/types'
 import { href } from '../lib/router'
@@ -16,31 +17,36 @@ export default function SiteNav({
   active?: BeverageFamily
 }) {
   return (
-    <nav className="bg-site/85 border-line fixed inset-x-0 top-0 z-50 flex h-[60px] items-center justify-between gap-x-3 border-b px-5 backdrop-blur-md sm:px-10">
+    <nav className="bg-site/85 border-line fixed inset-x-0 top-0 z-50 flex h-[60px] items-center justify-between gap-x-3 border-b px-4 backdrop-blur-md sm:px-10">
       <div className="flex min-w-0 shrink items-baseline gap-2.5">
         <span className="text-accent font-mono text-sm tracking-wider whitespace-nowrap">
           zw ~
         </span>
         <span className="text-muted font-mono text-xs">/</span>
-        <a
-          href="#/"
-          className="text-accent truncate font-mono text-xs"
-        >
+        <a href="#/" className="text-accent truncate font-mono text-xs">
           dram
         </a>
-        <span className="text-muted hidden font-mono text-xs sm:inline">·</span>
-        <TabLink to={href.list('alcohol')} current={active === 'alcohol'}>
-          cabinet
-        </TabLink>
-        <TabLink to={href.list('coffee')} current={active === 'coffee'}>
-          coffee
-        </TabLink>
       </div>
-      {badge && (
-        <span className="border-line bg-panel text-muted hidden rounded-full border px-3 py-1 font-mono text-[0.7rem] tracking-wide whitespace-nowrap md:inline">
-          {badge}
-        </span>
-      )}
+
+      <div className="flex items-center gap-3">
+        {badge && (
+          <span className="border-line bg-panel text-muted hidden rounded-full border px-3 py-1 font-mono text-[0.7rem] tracking-wide whitespace-nowrap md:inline">
+            {badge}
+          </span>
+        )}
+        {/* Segmented family switcher: one joined pill, two wide halves. Each
+            half is a ≥44px-tall tap target, so a thumb lands cleanly on a
+            phone; the divider marks the boundary. */}
+        <div className="border-line bg-panel flex shrink-0 items-stretch overflow-hidden rounded-full border">
+          <TabLink to={href.list('alcohol')} current={active === 'alcohol'}>
+            cabinet
+          </TabLink>
+          <span className="bg-line w-px" aria-hidden />
+          <TabLink to={href.list('coffee')} current={active === 'coffee'}>
+            coffee
+          </TabLink>
+        </div>
+      </div>
     </nav>
   )
 }
@@ -58,10 +64,10 @@ function TabLink({
     <a
       href={to}
       aria-current={current ? 'page' : undefined}
-      className={`rounded-full border px-2.5 py-1 font-mono text-xs whitespace-nowrap transition-colors ${
+      className={`flex min-h-[44px] items-center px-5 font-mono text-xs whitespace-nowrap transition-colors ${
         current
-          ? 'border-accent/40 bg-accent/10 text-accent'
-          : 'border-transparent text-muted hover:text-accent'
+          ? 'bg-accent/15 text-accent'
+          : 'text-muted hover:text-accent'
       }`}
     >
       {children}
