@@ -1,19 +1,26 @@
+import { useAuth } from './AuthContext'
+
 interface Props {
   /** Demo-specific tagline, e.g. the data source / mode. */
   note?: string
+  /** Opens the auth modal — the footer hosts the app's sign-in entry point. */
+  onSignIn: () => void
 }
 
 /**
  * Footer matching zackwithers.com / interp — built-by line left, icon links
  * (GitHub / LinkedIn / Email only) right. GitHub points at this site's repo.
+ * Also hosts the account line (sign in / sign out) so the header stays free
+ * of chrome; the auth-gated actions themselves still open the modal directly.
  */
-export default function SiteFooter({ note }: Props) {
+export default function SiteFooter({ note, onSignIn }: Props) {
   return (
     <footer className="border-line mt-14 flex flex-wrap items-center justify-between gap-4 border-t px-1 py-9">
       <div className="text-muted font-mono text-xs leading-relaxed">
         <div>Built by Zack Withers · 2026</div>
         <div className="mt-1 opacity-60">zwithers99@gmail.com · Denver, CO</div>
         {note && <div className="text-accent-dim mt-1 opacity-80">{note}</div>}
+        <AccountLine onSignIn={onSignIn} />
       </div>
       <div className="flex gap-6">
         <a
@@ -50,5 +57,36 @@ export default function SiteFooter({ note }: Props) {
         </a>
       </div>
     </footer>
+  )
+}
+
+/** Compact account state: a sign-in link, or who's signed in + sign out. */
+function AccountLine({ onSignIn }: { onSignIn: () => void }) {
+  const { mode, email, signOut } = useAuth()
+  if (mode === 'signed-out') {
+    return (
+      <button
+        onClick={onSignIn}
+        className="text-accent-dim hover:text-accent mt-1 inline-flex min-h-[28px] items-center transition-colors"
+      >
+        sign in
+      </button>
+    )
+  }
+  return (
+    <div className="mt-1 flex min-h-[28px] flex-wrap items-center gap-x-2">
+      <span className="opacity-60">
+        {mode === 'demo' ? 'demo mode' : email}
+      </span>
+      <span className="opacity-40" aria-hidden>
+        ·
+      </span>
+      <button
+        onClick={signOut}
+        className="text-accent-dim hover:text-accent transition-colors"
+      >
+        sign out
+      </button>
+    </div>
   )
 }
