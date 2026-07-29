@@ -21,7 +21,7 @@ import type {
   RecommendationResult,
   TastingNote,
 } from './types'
-import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf } from './types'
+import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf, normalizeRoast } from './types'
 import type { DramApi } from './api'
 import { ApiError } from './api'
 import { rankBySimilarity, type ScoredBottle } from './recommend'
@@ -503,6 +503,7 @@ const SEEDS: Seed[] = [
         finish: 'Clean, floral, lingering citrus.',
         rating: 9,
         flavorTags: flavor({ sweet: 3, fruity: 4, floral: 5, acidity: 5, body: 1 }),
+        brew: { grinder: 'Fellow Ode Gen 2', method: 'V60 pour over', grindSize: '4.33', ratio: '1:15', time: '3:02' },
       },
       {
         nose: 'Honeysuckle and stone fruit.',
@@ -510,6 +511,7 @@ const SEEDS: Seed[] = [
         finish: 'Crisp and bright.',
         rating: 8,
         flavorTags: flavor({ sweet: 3, fruity: 4, floral: 4, acidity: 4, body: 1 }),
+        brew: { grinder: 'Fellow Ode Gen 2', method: 'V60 pour over', grindSize: '4.5', ratio: '1:16', time: '2:48' },
       },
     ],
   },
@@ -533,6 +535,7 @@ const SEEDS: Seed[] = [
         finish: 'Smooth, sweet, medium length.',
         rating: 8,
         flavorTags: flavor({ sweet: 4, fruity: 3, floral: 1, acidity: 3, body: 3, oaky: 1, spicy: 1 }),
+        brew: { grinder: 'Baratza Encore', method: 'AeroPress', grindSize: '14', ratio: '1:14', time: '1:30' },
       },
     ],
   },
@@ -556,6 +559,7 @@ const SEEDS: Seed[] = [
         finish: 'Long, resinous, smoky.',
         rating: 7,
         flavorTags: flavor({ sweet: 2, fruity: 1, acidity: 1, body: 5, oaky: 3, smoky: 3, spicy: 2 }),
+        brew: { grinder: 'Baratza Encore', method: 'French press', grindSize: '30', ratio: '1:15', time: '4:00' },
       },
     ],
   },
@@ -627,23 +631,36 @@ function optField(
   return t === '' ? undefined : t
 }
 
+/** Roast additionally canonicalizes: "Light" / "Medium Dark" -> "light" / "medium-dark". */
+function optRoast(
+  v: string | null | undefined,
+  prev?: string,
+): string | undefined {
+  const out = optField(v, prev)
+  return out === undefined ? undefined : normalizeRoast(out)
+}
+
 /**
  * Narration + degraded flavour for specific bottles, so the detail page can
  * demo all three recommendation bases without a live model. Everything else
- * comes back as plain `structured`.
+ * comes back as plain `structured`. Mirrors the real recommender's rule that
+ * narration needs a big enough same-family pool to be more than noise.
  */
 const NARRATED = new Set(['b-lagavulin-16', 'b-redbreast-12', 'c-yirgacheffe'])
 const DEGRADED = new Set(['b-cloudy-bay-sb'])
+const MIN_NARRATE_POOL = 5
 
 function narrationFor(bottle: Bottle, recs: Recommendation[]): string | null {
   if (!NARRATED.has(bottle.id) || recs.length === 0) return null
   const top = recs[0]
   const second = recs[1]
+  // Bottle names in markdown bold — the panel renders inline emphasis, and
+  // the live Haiku layer sometimes emits it despite instructions.
   return (
-    `Because you rated ${bottle.name} highly, I'd reach for ${top.name} next — ` +
+    `Because you rated ${bottle.name} highly, I'd reach for **${top.name}** next — ` +
     `${top.reason.toLowerCase()}, so it should land in the same register. ` +
     (second
-      ? `If you want to stretch a little, ${second.name} keeps the through-line ` +
+      ? `If you want to stretch a little, **${second.name}** keeps the through-line ` +
         `(${second.reason.toLowerCase()}) while shifting the emphasis.`
       : '')
   ).trim()
@@ -660,6 +677,14 @@ function toRecommendation(r: ScoredBottle): Recommendation {
 
 export function makeMockApi(): DramApi {
   const store = buildStore()
+
+  // Note authorship (edit gate). Wire notes carry no author, so the mock
+  // tracks it on the side; seed notes belong to the demo user so demo mode
+  // can exercise editing.
+  const noteAuthors = new Map<string, string>()
+  for (const notes of store.notes.values()) {
+    for (const n of notes) noteAuthors.set(n.id, 'demo-token')
+  }
 
   return {
     async listBottles() {
@@ -693,7 +718,7 @@ export function makeMockApi(): DramApi {
         price: input.price ?? null,
         grape: optField(input.grape),
         style: optField(input.style),
-        roast: optField(input.roast),
+        roast: optRoast(input.roast),
         process: optField(input.process),
         createdAt: new Date().toISOString(),
         avgRating: null,
@@ -720,7 +745,7 @@ export function makeMockApi(): DramApi {
         price: input.price === undefined ? existing.price : (input.price ?? null),
         grape: optField(input.grape, existing.grape),
         style: optField(input.style, existing.style),
-        roast: optField(input.roast, existing.roast),
+        roast: optRoast(input.roast, existing.roast),
         process: optField(input.process, existing.process),
       }
       store.bottles.set(id, updated)
@@ -748,13 +773,40 @@ export function makeMockApi(): DramApi {
         finish: input.finish,
         rating: input.rating,
         flavorTags: input.flavorTags,
+        brew: input.brew,
         createdAt: new Date().toISOString(),
       }
+      noteAuthors.set(note.id, token)
       const list = store.notes.get(bottleId) ?? []
       list.push(note)
       store.notes.set(bottleId, list)
       refreshDerived(store, bottleId)
       return note
+    },
+
+    async updateNote(bottleId, noteId, input, token) {
+      await wait()
+      requireToken(token)
+      const list = store.notes.get(bottleId) ?? []
+      const idx = list.findIndex((n) => n.id === noteId)
+      if (idx === -1) throw new ApiError(404, `No note ${noteId}`)
+      if (noteAuthors.get(noteId) !== token) {
+        throw new ApiError(403, 'you can only edit your own notes')
+      }
+      const updated: TastingNote = {
+        ...list[idx],
+        nose: input.nose,
+        palate: input.palate,
+        finish: input.finish,
+        rating: input.rating,
+        flavorTags: input.flavorTags,
+        brew: input.brew,
+        updatedAt: new Date().toISOString(),
+      }
+      list[idx] = updated
+      store.notes.set(bottleId, list)
+      refreshDerived(store, bottleId)
+      return updated
     },
 
     async getRecommendations(bottleId) {
@@ -779,7 +831,13 @@ export function makeMockApi(): DramApi {
         .map(toRecommendation)
 
       const degraded = DEGRADED.has(bottleId)
-      const narration = degraded ? null : narrationFor(target, recommendations)
+      // Same-family candidate pool (target excluded) must be big enough for
+      // narration; a 3-coffee shelf gets the honest math layers only.
+      const pool = sameFamily.length - 1
+      const narration =
+        degraded || pool < MIN_NARRATE_POOL
+          ? null
+          : narrationFor(target, recommendations)
       const basis: RecommendationBasis = degraded
         ? 'structured'
         : narration

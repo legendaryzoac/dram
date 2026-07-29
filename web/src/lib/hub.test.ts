@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { BottleDetail, FlavorTags, TastingNote } from './types'
 import { EMPTY_FLAVOR } from './types'
-import { averageRating, collectNotes, tasteProfile, topAxes } from './hub'
+import {
+  averageRating,
+  collectNotes,
+  gearStats,
+  tasteProfile,
+  topAxes,
+} from './hub'
 import { rankByTasteProfile } from './recommend'
 
 let seq = 0
@@ -92,6 +98,33 @@ describe('averageRating', () => {
   it('averages to 1dp and handles empty', () => {
     expect(averageRating([])).toBeNull()
     expect(averageRating([note({ rating: 9 }), note({ rating: 8 })])).toBe(8.5)
+  })
+})
+
+describe('gearStats', () => {
+  it('counts grinders and methods from brew metadata, most-used first', () => {
+    const details = [
+      detail('c1', 'Yirgacheffe', 'coffee', [
+        note({ brew: { grinder: 'Fellow Ode Gen 2', method: 'V60 pour over' } }),
+        note({ brew: { grinder: 'Fellow Ode Gen 2', method: 'AeroPress' } }),
+      ]),
+      detail('c2', 'Huila', 'coffee', [
+        note({ brew: { grinder: 'Baratza Encore', method: 'V60 pour over' } }),
+        note({}), // no brew — ignored
+      ]),
+    ]
+    const stats = gearStats(collectNotes(details))
+    expect(stats.grinders).toEqual([
+      ['Fellow Ode Gen 2', 2],
+      ['Baratza Encore', 1],
+    ])
+    expect(stats.methods[0]).toEqual(['V60 pour over', 2])
+  })
+
+  it('is empty when no notes carry brew data', () => {
+    const stats = gearStats(collectNotes([detail('b1', 'Lagavulin', 'scotch', [note({})])]))
+    expect(stats.grinders).toEqual([])
+    expect(stats.methods).toEqual([])
   })
 })
 

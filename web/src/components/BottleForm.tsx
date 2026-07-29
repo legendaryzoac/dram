@@ -12,7 +12,14 @@ import type {
   BottleType,
   NewBottleInput,
 } from '../lib/types'
-import { familyOf, isCoffee, isSpirit, isWine } from '../lib/types'
+import {
+  ROAST_LEVELS,
+  familyOf,
+  isCoffee,
+  isSpirit,
+  isWine,
+  normalizeRoast,
+} from '../lib/types'
 import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
@@ -68,7 +75,7 @@ export default function BottleForm({ editId, initialFamily }: Props) {
     setType(b.type)
     setGrape(b.grape ?? '')
     setStyle(b.style ?? '')
-    setRoast(b.roast ?? '')
+    setRoast(b.roast === undefined ? '' : normalizeRoast(b.roast))
     setProcess(b.process ?? '')
     setAbv(String(b.abv))
     setPrice(b.price == null ? '' : String(b.price))
@@ -237,12 +244,23 @@ export default function BottleForm({ editId, initialFamily }: Props) {
           {coffee && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Roast (optional)">
-                <input
+                <select
                   className={inputClass}
                   value={roast}
                   onChange={(e) => setRoast(e.target.value)}
-                  placeholder="light / medium / dark"
-                />
+                >
+                  <option value="">—</option>
+                  {ROAST_LEVELS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                  {/* A stored roast outside the canon (older free-form entry)
+                      stays selectable rather than silently vanishing. */}
+                  {roast !== '' && !ROAST_LEVELS.includes(roast as never) && (
+                    <option value={roast}>{roast}</option>
+                  )}
+                </select>
               </Field>
               <Field label="Process (optional)">
                 <input

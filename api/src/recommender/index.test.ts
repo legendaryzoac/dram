@@ -113,9 +113,21 @@ describe('rankText', () => {
 })
 
 describe('recommend — degradation chain', () => {
+  // Narration needs MIN_NARRATE_POOL (5) same-family candidates; these
+  // corpora carry the target plus five peers so layer 3 is reachable.
   const structuredOnly: CorpusBottle[] = [
     { item: bottle('t', 'Islay', 'scotch', 46), notes: [note('t', 8, F(1, 5, 1, 3, 2))] },
-    { item: bottle('u', 'Islay', 'scotch', 46), notes: [note('u', 7, F(1, 5, 1, 3, 2))] },
+    ...['u1', 'u2', 'u3', 'u4', 'u5'].map((id) => ({
+      item: bottle(id, 'Islay', 'scotch', 46),
+      notes: [note(id, 7, F(1, 5, 1, 3, 2))],
+    })),
+  ]
+  const withEmbeddings: CorpusBottle[] = [
+    { item: bottle('t', 'Islay', 'scotch', 46), notes: [note('t', 8, F(1, 5, 1, 3, 2), [1, 0, 0])] },
+    ...['u1', 'u2', 'u3', 'u4', 'u5'].map((id, i) => ({
+      item: bottle(id, 'Islay', 'scotch', 46),
+      notes: [note(id, 7, F(1, 5, 1, 3, 2), [0.9 - i * 0.1, 0.1 + i * 0.1, 0])],
+    })),
   ]
 
   it('layer 1: structured only, no narrate dep -> basis=structured, not degraded', async () => {
@@ -127,16 +139,12 @@ describe('recommend — degradation chain', () => {
   })
 
   it('layer 3: narrate succeeds over text vectors -> basis=narrated, not degraded', async () => {
-    const withEmbeddings: CorpusBottle[] = [
-      { item: bottle('t', 'Islay', 'scotch', 46), notes: [note('t', 8, F(1, 5, 1, 3, 2), [1, 0, 0])] },
-      { item: bottle('u', 'Islay', 'scotch', 46), notes: [note('u', 7, F(1, 5, 1, 3, 2), [0.9, 0.1, 0])] },
-    ]
-    const narrate = vi.fn().mockResolvedValue('Try Bottle u — same smoky Islay core.')
+    const narrate = vi.fn().mockResolvedValue('Try Bottle u1 — same smoky Islay core.')
     const res = await recommend('t', withEmbeddings, { narrate })
     expect(narrate).toHaveBeenCalledOnce()
     expect(res.basis).toBe('narrated')
     expect(res.degraded).toBe(false)
-    expect(res.narration).toContain('Bottle u')
+    expect(res.narration).toContain('Bottle u1')
   })
 
   it('narrated over structured-only base still narrates but flags degraded (no text vectors)', async () => {
@@ -149,15 +157,25 @@ describe('recommend — degradation chain', () => {
   })
 
   it('narrate throws (Bedrock down) -> degrades to base layer, degraded=true', async () => {
-    const withEmbeddings: CorpusBottle[] = [
-      { item: bottle('t', 'Islay', 'scotch', 46), notes: [note('t', 8, F(1, 5, 1, 3, 2), [1, 0, 0])] },
-      { item: bottle('u', 'Islay', 'scotch', 46), notes: [note('u', 7, F(1, 5, 1, 3, 2), [0.9, 0.1, 0])] },
-    ]
     const narrate = vi.fn().mockRejectedValue(new Error('AccessDeniedException'))
     const res = await recommend('t', withEmbeddings, { narrate })
     expect(res.basis).toBe('text') // fell back to the base ranking layer
     expect(res.degraded).toBe(true)
     expect(res.narration).toBeNull()
+  })
+
+  it('skips narration entirely when the family pool is small (noise gate)', async () => {
+    const tiny: CorpusBottle[] = [
+      { item: bottle('t', 'Islay', 'scotch', 46), notes: [note('t', 8, F(1, 5, 1, 3, 2))] },
+      { item: bottle('u', 'Islay', 'scotch', 46), notes: [note('u', 7, F(1, 5, 1, 3, 2))] },
+    ]
+    const narrate = vi.fn().mockResolvedValue('should never run')
+    const res = await recommend('t', tiny, { narrate })
+    expect(narrate).not.toHaveBeenCalled()
+    expect(res.basis).toBe('structured')
+    expect(res.narration).toBeNull()
+    // A deliberate skip is not a failure.
+    expect(res.degraded).toBe(false)
   })
 
   it('empty/singleton corpus -> no recommendations, not degraded', async () => {

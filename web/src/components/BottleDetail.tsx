@@ -1,13 +1,15 @@
 /**
  * Bottle detail (route `#/bottles/:id`) — serves both families. Lays out:
- *   - bottle meta (producer / region / type / ABV-or-roast / price / rating),
+ *   - bottle meta (producer / region / type / ABV-or-roast / price) with a
+ *     single-row rating + note-count + edit cluster,
  *   - the D3 radar of its averaged flavor profile,
  *   - the "like this" recommendations panel (with cross-family picks),
- *   - the tasting-notes list (coffee wears aroma / flavor / aftertaste), and
+ *   - the tasting-notes list (coffee wears aroma / flavor / aftertaste, shows
+ *     brew metadata, and each of your notes can be edited in place), and
  *   - the auth-gated log-a-note form (inline, with live radar preview).
  */
-import { useEffect, useState } from 'react'
-import type { BottleDetail as BottleDetailData } from '../lib/types'
+import { useEffect, useMemo, useState } from 'react'
+import type { BottleDetail as BottleDetailData, TastingNote } from '../lib/types'
 import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf, isCoffee } from '../lib/types'
 import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
@@ -15,7 +17,7 @@ import { useAuth } from './AuthContext'
 import { NOTE_FIELD_LABELS } from '../lib/noteFields'
 import RadarChart from './RadarChart'
 import RecommendationsPanel from './RecommendationsPanel'
-import NoteForm from './NoteForm'
+import NoteForm, { type BrewSuggestions } from './NoteForm'
 import {
   Panel,
   RatingBadge,
@@ -27,6 +29,18 @@ import {
   ErrorNote,
 } from './ui'
 
+/** Select-or-type starters for the brew method field, merged with whatever
+ *  gear this bottle's notes already mention. */
+const METHOD_PRESETS = [
+  'V60 pour over',
+  'Espresso',
+  'AeroPress',
+  'French press',
+  'Chemex',
+  'Moka pot',
+  'Cold brew',
+]
+
 interface Props {
   id: string
   onRequireAuth: () => void
@@ -37,6 +51,7 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
   const [data, setData] = useState<BottleDetailData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [logging, setLogging] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   // Bumped after a note saves to force the bottle + recommendations to refetch.
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -60,13 +75,37 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
     }
   }, [id, reloadKey])
 
+  const brewSuggestions: BrewSuggestions = useMemo(() => {
+    const notes = data?.notes ?? []
+    const grinders = distinct(notes.map((n) => n.brew?.grinder))
+    const methods = distinct([
+      ...notes.map((n) => n.brew?.method),
+      ...METHOD_PRESETS,
+    ])
+    return { grinders, methods }
+  }, [data])
+
   function startLogging() {
-    if (token) setLogging(true)
-    else onRequireAuth()
+    if (token) {
+      setEditingNoteId(null)
+      setLogging(true)
+    } else {
+      onRequireAuth()
+    }
+  }
+
+  function startEditing(noteId: string) {
+    if (token) {
+      setLogging(false)
+      setEditingNoteId(noteId)
+    } else {
+      onRequireAuth()
+    }
   }
 
   function onNoteSaved() {
     setLogging(false)
+    setEditingNoteId(null)
     setReloadKey((k) => k + 1)
   }
 
@@ -92,7 +131,7 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
     <div className="flex flex-col gap-6">
       <BackLink family={familyOf(bottle.type)} />
 
-      {/* header: meta + rating + edit */}
+      {/* header: meta left; one row of rating · count · edit right */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="font-display text-fg text-2xl font-bold sm:text-3xl">
@@ -121,11 +160,15 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
             {bottle.price != null && <Tag tone="warm">${bottle.price}</Tag>}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* RatingBadge already reads "no notes yet" when unrated, so the
+              zero count would say the same thing twice. */}
           <RatingBadge value={bottle.avgRating} />
-          <span className="text-muted font-mono text-xs">
-            {bottle.noteCount} {bottle.noteCount === 1 ? 'note' : 'notes'}
-          </span>
+          {bottle.noteCount > 0 && (
+            <span className="text-muted font-mono text-xs">
+              {bottle.noteCount} {bottle.noteCount === 1 ? 'note' : 'notes'}
+            </span>
+          )}
           {token && (
             <button
               className={`${ghostButtonClass} px-3 py-1 text-xs`}
@@ -171,6 +214,7 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
                 <NoteForm
                   bottleId={bottle.id}
                   bottleType={bottle.type}
+                  brewSuggestions={brewSuggestions}
                   onSaved={onNoteSaved}
                   onCancel={() => setLogging(false)}
                 />
@@ -189,19 +233,24 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
                   key={note.id}
                   className="border-line bg-panel-2/40 rounded-lg border p-4"
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-warm font-mono text-sm">
-                      {note.rating}/10
-                    </span>
-                    <span className="text-muted font-mono text-xs">
-                      {formatDate(note.createdAt)}
-                    </span>
-                  </div>
-                  <dl className="flex flex-col gap-1.5 text-sm">
-                    <NoteLine label={noteLabels.nose} value={note.nose} />
-                    <NoteLine label={noteLabels.palate} value={note.palate} />
-                    <NoteLine label={noteLabels.finish} value={note.finish} />
-                  </dl>
+                  {editingNoteId === note.id ? (
+                    <NoteForm
+                      bottleId={bottle.id}
+                      bottleType={bottle.type}
+                      editNote={note}
+                      brewSuggestions={brewSuggestions}
+                      onSaved={onNoteSaved}
+                      onCancel={() => setEditingNoteId(null)}
+                    />
+                  ) : (
+                    <NoteView
+                      note={note}
+                      coffee={coffee}
+                      labels={noteLabels}
+                      canEdit={Boolean(token)}
+                      onEdit={() => startEditing(note.id)}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -218,6 +267,69 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
       </div>
     </div>
   )
+}
+
+function NoteView({
+  note,
+  coffee,
+  labels,
+  canEdit,
+  onEdit,
+}: {
+  note: TastingNote
+  coffee: boolean
+  labels: (typeof NOTE_FIELD_LABELS)['alcohol' | 'coffee']
+  canEdit: boolean
+  onEdit: () => void
+}) {
+  const brewLine = coffee && note.brew ? formatBrew(note.brew) : null
+  return (
+    <>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="flex items-baseline gap-2">
+          <span className="text-warm font-mono text-sm">{note.rating}/10</span>
+          {note.updatedAt && (
+            <span className="text-muted font-mono text-[0.65rem] opacity-70">
+              edited
+            </span>
+          )}
+        </span>
+        <span className="flex items-center gap-3">
+          <span className="text-muted font-mono text-xs">
+            {formatDate(note.createdAt)}
+          </span>
+          {canEdit && (
+            <button
+              onClick={onEdit}
+              className="text-muted hover:text-accent font-mono text-xs transition-colors"
+            >
+              edit
+            </button>
+          )}
+        </span>
+      </div>
+      <dl className="flex flex-col gap-1.5 text-sm">
+        <NoteLine label={labels.nose} value={note.nose} />
+        <NoteLine label={labels.palate} value={note.palate} />
+        <NoteLine label={labels.finish} value={note.finish} />
+      </dl>
+      {brewLine && (
+        <p className="text-accent-dim mt-2 font-mono text-xs">{brewLine}</p>
+      )}
+    </>
+  )
+}
+
+/** "Fellow Ode Gen 2 · V60 pour over · grind 4.33 · 1:15 · 3:02" */
+function formatBrew(brew: NonNullable<TastingNote['brew']>): string | null {
+  const parts = [
+    brew.grinder,
+    brew.method,
+    brew.grindSize ? `grind ${brew.grindSize}` : undefined,
+    brew.ratio,
+    brew.time,
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 function NoteLine({ label, value }: { label: string; value: string }) {
@@ -241,6 +353,10 @@ function BackLink({ family = 'alcohol' as const }: { family?: 'alcohol' | 'coffe
       {family === 'coffee' ? '← the coffee bar' : '← the cabinet'}
     </button>
   )
+}
+
+function distinct(values: Array<string | undefined>): string[] {
+  return [...new Set(values.filter((v): v is string => Boolean(v)))]
 }
 
 function formatDate(iso: string): string {

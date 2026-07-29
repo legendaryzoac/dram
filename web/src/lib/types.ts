@@ -76,6 +76,31 @@ export interface Bottle {
   noteCount: number
 }
 
+/** Canonical roast levels (coffee). Free-form on the wire, but reads and
+ *  writes are normalized so "Light" and "light" never fork the filters. */
+export const ROAST_LEVELS = [
+  'light',
+  'light-medium',
+  'medium',
+  'medium-dark',
+  'dark',
+] as const
+
+/** Lowercase, trimmed, spaces collapsed to hyphens: "Medium Dark" -> "medium-dark". */
+export function normalizeRoast(v: string): string {
+  return v.trim().toLowerCase().replace(/\s+/g, '-')
+}
+
+/** Optional brew metadata on a tasting note — how a coffee was made. All
+ *  free-form strings so "4.33", "1:15", and "3:02" survive as written. */
+export interface NoteBrew {
+  grinder?: string
+  method?: string
+  grindSize?: string
+  ratio?: string
+  time?: string
+}
+
 export interface TastingNote {
   id: string
   bottleId: string
@@ -85,7 +110,11 @@ export interface TastingNote {
   /** 1..10 */
   rating: number
   flavorTags: FlavorTags
+  /** How it was brewed (coffee notes). */
+  brew?: NoteBrew
   createdAt: string
+  /** Present once a note has been edited. */
+  updatedAt?: string
 }
 
 export interface Recommendation {
@@ -133,13 +162,14 @@ export interface NewBottleInput {
   process?: string | null
 }
 
-/** Request body for POST /bottles/{id}/notes. */
+/** Request body for POST /bottles/{id}/notes and PUT .../notes/{noteId}. */
 export interface NewNoteInput {
   nose: string
   palate: string
   finish: string
   rating: number
   flavorTags: FlavorTags
+  brew?: NoteBrew
 }
 
 /** The eight flavor axes in a fixed display order (radar + slider order): a

@@ -10,15 +10,17 @@ import {
   handleUpdateBottle,
 } from './bottles'
 import { json, noContent } from './http'
-import { handleCreateNote } from './notes'
+import { handleCreateNote, handleUpdateNote } from './notes'
 import { handleRecommendations } from './recommendations'
 
 // The HTTP API's JWT authorizer (Cognito) gates every write route, so a request
 // that reaches this Lambda on a write path is already authenticated. We treat a
 // present `authorizer.jwt` as the auth signal and 401 otherwise — belt-and-
-// suspenders in case a route is ever misconfigured as public.
-function isAuthed(event: APIGatewayProxyEventV2WithJWTAuthorizer): boolean {
-  return Boolean(event.requestContext.authorizer?.jwt?.claims?.sub)
+// suspenders in case a route is ever misconfigured as public. The sub doubles
+// as the note-author identity for edit ownership checks.
+function callerSub(event: APIGatewayProxyEventV2WithJWTAuthorizer): string | null {
+  const sub = event.requestContext.authorizer?.jwt?.claims?.sub
+  return typeof sub === 'string' && sub.length > 0 ? sub : null
 }
 
 export async function handler(
@@ -38,6 +40,8 @@ export async function handler(
     : `${method} ${event.rawPath}`
   const params = event.pathParameters ?? {}
   const id = params.id
+  const noteId = params.noteId
+  const sub = callerSub(event)
 
   try {
     // --- public reads ---
@@ -52,20 +56,24 @@ export async function handler(
 
     // --- authed writes ---
     if (routeKey === 'POST /bottles') {
-      if (!isAuthed(event)) return json(401, { error: 'unauthorized' }, origin)
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
       return await handleCreateBottle(event, origin)
     }
     if (routeKey === 'PUT /bottles/{id}' && id) {
-      if (!isAuthed(event)) return json(401, { error: 'unauthorized' }, origin)
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
       return await handleUpdateBottle(id, event, origin)
     }
     if (routeKey === 'DELETE /bottles/{id}' && id) {
-      if (!isAuthed(event)) return json(401, { error: 'unauthorized' }, origin)
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
       return await handleDeleteBottle(id, origin)
     }
     if (routeKey === 'POST /bottles/{id}/notes' && id) {
-      if (!isAuthed(event)) return json(401, { error: 'unauthorized' }, origin)
-      return await handleCreateNote(id, event, origin)
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
+      return await handleCreateNote(id, event, sub, origin)
+    }
+    if (routeKey === 'PUT /bottles/{id}/notes/{noteId}' && id && noteId) {
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
+      return await handleUpdateNote(id, noteId, event, sub, origin)
     }
 
     return json(404, { error: 'not found' }, origin)

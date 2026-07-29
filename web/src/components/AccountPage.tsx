@@ -19,6 +19,7 @@ import { NOTE_FIELD_LABELS } from '../lib/noteFields'
 import {
   averageRating,
   collectNotes,
+  gearStats,
   tasteProfile,
   topAxes,
   type HubNote,
@@ -108,6 +109,7 @@ export default function AccountPage({ onRequireAuth }: Props) {
   const coffeePicks = palate
     ? rankByTasteProfile(palate, coffees).slice(0, PICKS_PER_FAMILY)
     : []
+  const gear = gearStats(notes)
 
   return (
     <div className="flex flex-col gap-6">
@@ -190,8 +192,55 @@ export default function AccountPage({ onRequireAuth }: Props) {
               </div>
             )}
           </Panel>
+
+          <Panel>
+            <SectionTitle hint="from your brew notes">
+              Your coffee gear
+            </SectionTitle>
+            {gear.grinders.length === 0 && gear.methods.length === 0 ? (
+              <p className="text-muted text-sm">
+                Add brew details (grinder, method, grind size…) when you log a
+                coffee note and your setup shows up here.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <GearList label="Grinders" items={gear.grinders} />
+                <GearList label="Methods & machines" items={gear.methods} />
+              </div>
+            )}
+          </Panel>
         </div>
       </div>
+    </div>
+  )
+}
+
+function GearList({
+  label,
+  items,
+}: {
+  label: string
+  items: Array<[string, number]>
+}) {
+  if (items.length === 0) return null
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-muted font-mono text-[0.7rem] tracking-wide uppercase">
+        {label}
+      </p>
+      <ul className="flex flex-col gap-1.5">
+        {items.map(([name, count]) => (
+          <li
+            key={name}
+            className="border-line bg-panel-2/50 flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+          >
+            <span className="text-fg/90 min-w-0 truncate text-sm">{name}</span>
+            <span className="text-muted shrink-0 font-mono text-xs">
+              ×{count}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

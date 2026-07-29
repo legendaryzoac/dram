@@ -24,8 +24,12 @@ vi.mock('./store', async () => {
       bottles.set(item.id, item)
     }),
     putNote: vi.fn(async (item: NoteItem) => {
+      // Upsert by id, like DynamoDB Put on the same pk/sk (note edits
+      // rewrite the item rather than adding a sibling).
       const arr = notes.get(item.bottleId) ?? []
-      arr.push(item)
+      const idx = arr.findIndex((n) => n.id === item.id)
+      if (idx === -1) arr.push(item)
+      else arr[idx] = item
       notes.set(item.bottleId, arr)
     }),
     deleteBottleAndNotes: vi.fn(async (id: string) => {
@@ -55,6 +59,7 @@ function makeEvent(
     pathParameters?: Record<string, string>
     body?: unknown
     authed?: boolean
+    sub?: string
   } = {},
 ): APIGatewayProxyEventV2WithJWTAuthorizer {
   const [method, rawPath] = routeKey.split(' ')
@@ -67,7 +72,7 @@ function makeEvent(
     requestContext: {
       http: { method, path: rawPath, protocol: 'HTTP/1.1', sourceIp: '', userAgent: '' },
       authorizer: opts.authed
-        ? { jwt: { claims: { sub: 'user-123' }, scopes: [] } }
+        ? { jwt: { claims: { sub: opts.sub ?? 'user-123' }, scopes: [] } }
         : undefined,
     } as never,
     pathParameters: opts.pathParameters,
@@ -249,6 +254,146 @@ describe('handler routing', () => {
       sweet: 4, smoky: 0, fruity: 4, oaky: 3, spicy: 3,
       floral: 1, acidity: 2, body: 4,
     })
+  })
+
+  it('edits a note (author only), stores brew, and stamps updatedAt', async () => {
+    const created = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: {
+            name: 'Ethiopia Yirgacheffe', producer: 'Counter Culture',
+            region: 'Yirgacheffe, Ethiopia', type: 'coffee', abv: 0,
+          },
+        }),
+      ),
+    )
+    const bottleId = created.body.id
+
+    const noteRes = parse(
+      await handler(
+        makeEvent('POST /bottles/{id}/notes', {
+          authed: true,
+          pathParameters: { id: bottleId },
+          body: {
+            nose: 'jasmine', palate: 'black tea', finish: 'clean', rating: 8,
+            flavorTags: {
+              sweet: 3, smoky: 0, fruity: 4, oaky: 0, spicy: 0,
+              floral: 5, acidity: 5, body: 1,
+            },
+            brew: {
+              grinder: 'Fellow Ode Gen 2', method: 'V60 pour over',
+              grindSize: '4.33', ratio: '1:15', time: '3:02',
+            },
+          },
+        }),
+      ),
+    )
+    expect(noteRes.status).toBe(200)
+    expect(noteRes.body.brew).toEqual({
+      grinder: 'Fellow Ode Gen 2', method: 'V60 pour over',
+      grindSize: '4.33', ratio: '1:15', time: '3:02',
+    })
+    expect(noteRes.body.updatedAt).toBeUndefined()
+    const noteId = noteRes.body.id
+
+    // A different user may not edit it.
+    const forbidden = parse(
+      await handler(
+        makeEvent('PUT /bottles/{id}/notes/{noteId}', {
+          authed: true,
+          sub: 'someone-else',
+          pathParameters: { id: bottleId, noteId },
+          body: {
+            nose: 'x', palate: 'x', finish: 'x', rating: 5,
+            flavorTags: { sweet: 1, smoky: 1, fruity: 1, oaky: 1, spicy: 1 },
+          },
+        }),
+      ),
+    )
+    expect(forbidden.status).toBe(403)
+
+    // The author edits: content replaced, brew replaced, updatedAt stamped.
+    const edited = parse(
+      await handler(
+        makeEvent('PUT /bottles/{id}/notes/{noteId}', {
+          authed: true,
+          pathParameters: { id: bottleId, noteId },
+          body: {
+            nose: 'jasmine, riper', palate: 'lemon curd', finish: 'long', rating: 9,
+            flavorTags: {
+              sweet: 3, smoky: 0, fruity: 5, oaky: 0, spicy: 0,
+              floral: 5, acidity: 5, body: 1,
+            },
+            brew: { grinder: 'Fellow Ode Gen 2', method: 'AeroPress' },
+          },
+        }),
+      ),
+    )
+    expect(edited.status).toBe(200)
+    expect(edited.body.rating).toBe(9)
+    expect(edited.body.palate).toBe('lemon curd')
+    expect(edited.body.brew).toEqual({
+      grinder: 'Fellow Ode Gen 2', method: 'AeroPress',
+    })
+    expect(typeof edited.body.updatedAt).toBe('string')
+    expect(edited.body.id).toBe(noteId)
+
+    // The bottle aggregate reflects the edit.
+    const got = parse(
+      await handler(makeEvent('GET /bottles/{id}', { pathParameters: { id: bottleId } })),
+    )
+    expect(got.body.bottle.avgRating).toBe(9)
+    expect(got.body.notes).toHaveLength(1)
+  })
+
+  it('editing a missing note 404s', async () => {
+    const created = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: { name: 'x', producer: 'p', region: 'r', type: 't', abv: 40 },
+        }),
+      ),
+    )
+    const res = parse(
+      await handler(
+        makeEvent('PUT /bottles/{id}/notes/{noteId}', {
+          authed: true,
+          pathParameters: { id: created.body.id, noteId: 'ghost' },
+          body: {
+            nose: 'n', palate: 'p', finish: 'f', rating: 7,
+            flavorTags: { sweet: 1, smoky: 1, fruity: 1, oaky: 1, spicy: 1 },
+          },
+        }),
+      ),
+    )
+    expect(res.status).toBe(404)
+  })
+
+  it('canonicalizes roast on create and update', async () => {
+    const created = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: {
+            name: 'Mt Ijen', producer: 'Mango Tree', region: 'Indonesia',
+            type: 'coffee', abv: 0, roast: 'Light',
+          },
+        }),
+      ),
+    )
+    expect(created.body.roast).toBe('light')
+    const updated = parse(
+      await handler(
+        makeEvent('PUT /bottles/{id}', {
+          authed: true,
+          pathParameters: { id: created.body.id },
+          body: { roast: 'Medium Dark' },
+        }),
+      ),
+    )
+    expect(updated.body.roast).toBe('medium-dark')
   })
 
   it('rejects a note missing a core axis', async () => {

@@ -8,6 +8,7 @@ import {
 import { TABLE_NAME, ddb } from './db'
 import {
   FLAVOR_AXES,
+  normalizeRoast,
   type Bottle,
   type BottleItem,
   type FlavorTags,
@@ -65,7 +66,9 @@ export function toBottle(item: BottleItem, notes: NoteItem[]): Bottle {
     price: item.price,
     grape: item.grape,
     style: item.style,
-    roast: item.roast,
+    // Normalized on read too, so items stored before canonicalization
+    // ("Light") don't fork the roast filter against new ones ("light").
+    roast: item.roast === undefined ? undefined : normalizeRoast(item.roast),
     process: item.process,
     createdAt: item.createdAt,
     avgRating: averageRating(notes),
@@ -79,7 +82,7 @@ export function toNote(item: NoteItem): TastingNote {
   // shape is always a complete FlavorTags.
   const flavorTags = {} as FlavorTags
   for (const axis of FLAVOR_AXES) flavorTags[axis] = item.flavorTags[axis] ?? 0
-  // Deliberately omits `embedding` — it is stored but never returned.
+  // Deliberately omits `embedding` and `authorSub` — stored, never returned.
   return {
     id: item.id,
     bottleId: item.bottleId,
@@ -88,7 +91,9 @@ export function toNote(item: NoteItem): TastingNote {
     finish: item.finish,
     rating: item.rating,
     flavorTags,
+    brew: item.brew,
     createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   }
 }
 

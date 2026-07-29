@@ -38,6 +38,10 @@ export interface CorpusBottle {
 const MAX_RECS = 5
 const MAX_CROSS = 3
 const NARRATE_CANDIDATES = 3
+/** Haiku narration needs a real sample to reason over — with only a handful
+ *  of same-family candidates it's confident-sounding noise. Below this many
+ *  candidates the response stays at the text/structured layer. */
+const MIN_NARRATE_POOL = 5
 
 // ---- structured helpers (pure) ----
 
@@ -289,8 +293,10 @@ export async function recommend(
     }
   }
 
-  // Layer 3: narrate over the top candidates, if Bedrock narration is wired.
-  if (deps.narrate) {
+  // Layer 3: narrate over the top candidates, if Bedrock narration is wired
+  // AND the family has enough candidates for the narration to mean anything.
+  const narratePool = candidateIds(targetId, corpus, true).size
+  if (deps.narrate && narratePool >= MIN_NARRATE_POOL) {
     const targetName =
       corpus.find((b) => b.item.id === targetId)?.item.name ?? targetId
     const candidates = base.slice(0, NARRATE_CANDIDATES).map((r) => {

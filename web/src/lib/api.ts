@@ -41,6 +41,13 @@ export interface DramApi {
     input: NewNoteInput,
     token: string,
   ): Promise<TastingNote>
+  /** Edit an existing note — the API only allows the note's author. */
+  updateNote(
+    bottleId: string,
+    noteId: string,
+    input: NewNoteInput,
+    token: string,
+  ): Promise<TastingNote>
   getRecommendations(bottleId: string): Promise<RecommendationResult>
   health(): Promise<{ ok: true }>
 }
@@ -118,6 +125,14 @@ export function makeRealApi(baseUrl = API_BASE_URL): DramApi {
     async addNote(bottleId, input, token) {
       const res = await fetch(url(`/bottles/${bottleId}/notes`), {
         method: 'POST',
+        headers: authHeaders(token, true),
+        body: JSON.stringify(input),
+      })
+      return parse<TastingNote>(res)
+    },
+    async updateNote(bottleId, noteId, input, token) {
+      const res = await fetch(url(`/bottles/${bottleId}/notes/${noteId}`), {
+        method: 'PUT',
         headers: authHeaders(token, true),
         body: JSON.stringify(input),
       })

@@ -1,13 +1,17 @@
 /**
- * Log-a-tasting-note form (auth-gated). Three free-text prose fields, a 1–10
- * rating, and eight flavor-tag sliders (0..5). The wire fields are always
- * nose / palate / finish; coffee just wears them as aroma / flavor /
- * aftertaste. The radar preview updates live as the sliders move, so you see
- * the profile you're describing before you save. Built phone-first: single
- * column, big tap targets, sliders that work with a thumb.
+ * Log-or-edit-a-tasting-note form (auth-gated). Three free-text prose fields,
+ * a 1–10 rating, and eight flavor-tag sliders (0..5). The wire fields are
+ * always nose / palate / finish; coffee just wears them as aroma / flavor /
+ * aftertaste. Coffee notes also take optional brew metadata (grinder, method,
+ * grind size, ratio, time) with select-or-type suggestions from gear already
+ * used. The radar preview updates live as the sliders move. Built phone-first:
+ * single column, big tap targets, sliders that work with a thumb.
+ *
+ * With `editNote` set the form prefills and PUTs an edit (the API allows only
+ * the note's author); otherwise it POSTs a new note.
  */
 import { useState } from 'react'
-import type { FlavorTags, NewNoteInput } from '../lib/types'
+import type { FlavorTags, NewNoteInput, NoteBrew, TastingNote } from '../lib/types'
 import { EMPTY_FLAVOR, FLAVOR_AXES, isCoffee } from '../lib/types'
 import { getApi } from '../lib/api'
 import { NOTE_FIELD_LABELS } from '../lib/noteFields'
@@ -21,10 +25,19 @@ import {
   ErrorNote,
 } from './ui'
 
+export interface BrewSuggestions {
+  grinders: string[]
+  methods: string[]
+}
+
 interface Props {
   bottleId: string
-  /** The bottle's beverage type — drives the coffee-vs-alcohol field labels. */
+  /** The bottle's beverage type — drives labels and the brew section. */
   bottleType: string
+  /** Present when editing an existing note; prefills and PUTs instead. */
+  editNote?: TastingNote
+  /** Select-or-type options for the brew fields (from gear already used). */
+  brewSuggestions?: BrewSuggestions
   onSaved: () => void
   onCancel: () => void
 }
@@ -32,23 +45,45 @@ interface Props {
 export default function NoteForm({
   bottleId,
   bottleType,
+  editNote,
+  brewSuggestions,
   onSaved,
   onCancel,
 }: Props) {
   const { token } = useAuth()
-  const [nose, setNose] = useState('')
-  const [palate, setPalate] = useState('')
-  const [finish, setFinish] = useState('')
-  const [rating, setRating] = useState(7)
-  const [flavor, setFlavor] = useState<FlavorTags>({ ...EMPTY_FLAVOR })
+  const [nose, setNose] = useState(editNote?.nose ?? '')
+  const [palate, setPalate] = useState(editNote?.palate ?? '')
+  const [finish, setFinish] = useState(editNote?.finish ?? '')
+  const [rating, setRating] = useState(editNote?.rating ?? 7)
+  const [flavor, setFlavor] = useState<FlavorTags>({
+    ...EMPTY_FLAVOR,
+    ...editNote?.flavorTags,
+  })
+  const [grinder, setGrinder] = useState(editNote?.brew?.grinder ?? '')
+  const [method, setMethod] = useState(editNote?.brew?.method ?? '')
+  const [grindSize, setGrindSize] = useState(editNote?.brew?.grindSize ?? '')
+  const [ratio, setRatio] = useState(editNote?.brew?.ratio ?? '')
+  const [time, setTime] = useState(editNote?.brew?.time ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const labels =
-    NOTE_FIELD_LABELS[isCoffee(bottleType) ? 'coffee' : 'alcohol']
+  const coffee = isCoffee(bottleType)
+  const labels = NOTE_FIELD_LABELS[coffee ? 'coffee' : 'alcohol']
+  const editing = Boolean(editNote)
 
   function setAxis(key: keyof FlavorTags, value: number) {
     setFlavor((f) => ({ ...f, [key]: value }))
+  }
+
+  function buildBrew(): NoteBrew | undefined {
+    if (!coffee) return undefined
+    const brew: NoteBrew = {}
+    if (grinder.trim()) brew.grinder = grinder.trim()
+    if (method.trim()) brew.method = method.trim()
+    if (grindSize.trim()) brew.grindSize = grindSize.trim()
+    if (ratio.trim()) brew.ratio = ratio.trim()
+    if (time.trim()) brew.time = time.trim()
+    return Object.keys(brew).length > 0 ? brew : undefined
   }
 
   async function submit(e: React.FormEvent) {
@@ -56,9 +91,18 @@ export default function NoteForm({
     if (!token) return
     setBusy(true)
     setError(null)
-    const input: NewNoteInput = { nose, palate, finish, rating, flavorTags: flavor }
+    const input: NewNoteInput = {
+      nose,
+      palate,
+      finish,
+      rating,
+      flavorTags: flavor,
+      brew: buildBrew(),
+    }
     try {
-      await getApi().addNote(bottleId, input, token)
+      const api = getApi()
+      if (editNote) await api.updateNote(bottleId, editNote.id, input, token)
+      else await api.addNote(bottleId, input, token)
       onSaved()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save note')
@@ -107,6 +151,70 @@ export default function NoteForm({
               className="w-full"
             />
           </Field>
+
+          {coffee && (
+            <fieldset className="border-line rounded-xl border border-dashed p-3">
+              <legend className={`${labelClass} px-1`}>
+                How it was brewed (optional)
+              </legend>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Grinder">
+                  <input
+                    className={inputClass}
+                    list="brew-grinders"
+                    value={grinder}
+                    onChange={(e) => setGrinder(e.target.value)}
+                    placeholder="Fellow Ode Gen 2"
+                  />
+                  <datalist id="brew-grinders">
+                    {(brewSuggestions?.grinders ?? []).map((g) => (
+                      <option key={g} value={g} />
+                    ))}
+                  </datalist>
+                </Field>
+                <Field label="Method / machine">
+                  <input
+                    className={inputClass}
+                    list="brew-methods"
+                    value={method}
+                    onChange={(e) => setMethod(e.target.value)}
+                    placeholder="V60 pour over"
+                  />
+                  <datalist id="brew-methods">
+                    {(brewSuggestions?.methods ?? []).map((m) => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
+                </Field>
+                <Field label="Grind size">
+                  <input
+                    className={inputClass}
+                    value={grindSize}
+                    onChange={(e) => setGrindSize(e.target.value)}
+                    placeholder="4.33"
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Ratio">
+                    <input
+                      className={inputClass}
+                      value={ratio}
+                      onChange={(e) => setRatio(e.target.value)}
+                      placeholder="1:15"
+                    />
+                  </Field>
+                  <Field label="Time">
+                    <input
+                      className={inputClass}
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                      placeholder="3:02"
+                    />
+                  </Field>
+                </div>
+              </div>
+            </fieldset>
+          )}
         </div>
 
         {/* right: sliders + live radar */}
@@ -147,7 +255,7 @@ export default function NoteForm({
 
       <div className="flex gap-3">
         <button className={buttonClass} disabled={busy}>
-          {busy ? 'Saving…' : 'Save tasting note'}
+          {busy ? 'Saving…' : editing ? 'Save changes' : 'Save tasting note'}
         </button>
         <button
           type="button"

@@ -226,6 +226,7 @@ export class SiteStack extends Stack {
       [apigwv2.HttpMethod.PUT, '/bottles/{id}'],
       [apigwv2.HttpMethod.DELETE, '/bottles/{id}'],
       [apigwv2.HttpMethod.POST, '/bottles/{id}/notes'],
+      [apigwv2.HttpMethod.PUT, '/bottles/{id}/notes/{noteId}'],
     ] as const) {
       httpApi.addRoutes({ path: route, methods: [method], integration, authorizer })
     }

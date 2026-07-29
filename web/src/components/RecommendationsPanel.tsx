@@ -18,6 +18,7 @@ import type {
 } from '../lib/types'
 import { isCoffee } from '../lib/types'
 import { getApi } from '../lib/api'
+import { tokenizeInline } from '../lib/inlineMarkdown'
 import { href, navigate } from '../lib/router'
 import { Panel, SectionTitle, Spinner, ErrorNote } from './ui'
 
@@ -150,13 +151,33 @@ export default function RecommendationsPanel({
                 <span aria-hidden>✦</span> narrated pick
               </div>
               <p className="text-fg/90 text-sm leading-relaxed">
-                {result.narration}
+                <Narration text={result.narration} />
               </p>
             </div>
           )}
         </div>
       )}
     </Panel>
+  )
+}
+
+/** Narration prose with bold and italic asterisk markers rendered as real
+ *  emphasis — the model sometimes emits markdown despite instructions. */
+function Narration({ text }: { text: string }) {
+  return (
+    <>
+      {tokenizeInline(text).map((t, i) =>
+        t.kind === 'bold' ? (
+          <strong key={i} className="text-fg font-semibold">
+            {t.text}
+          </strong>
+        ) : t.kind === 'italic' ? (
+          <em key={i}>{t.text}</em>
+        ) : (
+          <span key={i}>{t.text}</span>
+        ),
+      )}
+    </>
   )
 }
 

@@ -54,3 +54,27 @@ export function averageRating(notes: TastingNote[]): number | null {
   const sum = notes.reduce((a, n) => a + n.rating, 0)
   return Math.round((sum / notes.length) * 10) / 10
 }
+
+export interface GearStats {
+  /** [name, timesUsed], most-used first. */
+  grinders: Array<[string, number]>
+  methods: Array<[string, number]>
+}
+
+/** Grinders and methods/machines pulled from coffee notes' brew metadata,
+ *  with use counts — the account page's "your coffee gear" panel. */
+export function gearStats(notes: HubNote[]): GearStats {
+  const grinders = new Map<string, number>()
+  const methods = new Map<string, number>()
+  for (const n of notes) {
+    if (n.brew?.grinder) {
+      grinders.set(n.brew.grinder, (grinders.get(n.brew.grinder) ?? 0) + 1)
+    }
+    if (n.brew?.method) {
+      methods.set(n.brew.method, (methods.get(n.brew.method) ?? 0) + 1)
+    }
+  }
+  const desc = (m: Map<string, number>) =>
+    [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  return { grinders: desc(grinders), methods: desc(methods) }
+}

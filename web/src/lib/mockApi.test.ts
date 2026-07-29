@@ -141,11 +141,19 @@ describe('mock API — contract', () => {
     expect(result.narration).toBeNull()
   })
 
-  it('narrates a coffee target too', async () => {
+  it('skips narration when the family pool is too small to mean anything', async () => {
     const api = makeMockApi()
+    // Only 3 coffees seeded (2 candidates) — below the narration gate, even
+    // though this bottle is in the NARRATED demo set.
     const result = await api.getRecommendations('c-yirgacheffe')
-    expect(result.basis).toBe('narrated')
-    expect(result.narration).toBeTruthy()
+    expect(result.narration).toBeNull()
+    expect(result.basis).not.toBe('narrated')
+  })
+
+  it('narration renders bottle names in markdown bold for the panel to style', async () => {
+    const api = makeMockApi()
+    const result = await api.getRecommendations('b-lagavulin-16')
+    expect(result.narration).toMatch(/\*\*[^*]+\*\*/)
   })
 
   it('surfaces a text basis for a multi-note, non-narrated bottle', async () => {
@@ -187,6 +195,69 @@ describe('mock API — contract', () => {
     for (const r of result.crossFamily) {
       expect(typeById.get(r.bottleId)).toBe('coffee')
     }
+  })
+
+  it('canonicalizes roast on create ("Light" -> "light")', async () => {
+    const api = makeMockApi()
+    const made = await api.createBottle(
+      {
+        name: 'Mt Ijen', producer: 'Mango Tree', region: 'Indonesia',
+        type: 'coffee', abv: 0, roast: 'Light',
+      },
+      't',
+    )
+    expect(made.roast).toBe('light')
+  })
+
+  it('stores brew on a note and lets its author edit it', async () => {
+    const api = makeMockApi()
+    const note = await api.addNote(
+      'c-huila',
+      {
+        nose: 'cocoa', palate: 'toffee', finish: 'clean', rating: 8,
+        flavorTags: { ...EMPTY_FLAVOR, sweet: 4 },
+        brew: { grinder: 'Comandante C40', method: 'AeroPress', time: '1:45' },
+      },
+      'my-token',
+    )
+    expect(note.brew?.grinder).toBe('Comandante C40')
+
+    const edited = await api.updateNote(
+      'c-huila',
+      note.id,
+      {
+        nose: 'cocoa', palate: 'toffee, deeper', finish: 'clean', rating: 9,
+        flavorTags: { ...EMPTY_FLAVOR, sweet: 5 },
+        brew: { grinder: 'Comandante C40', method: 'V60 pour over' },
+      },
+      'my-token',
+    )
+    expect(edited.rating).toBe(9)
+    expect(edited.brew?.method).toBe('V60 pour over')
+    expect(edited.updatedAt).toBeTruthy()
+  })
+
+  it("rejects editing someone else's note with 403", async () => {
+    const api = makeMockApi()
+    const note = await api.addNote(
+      'c-huila',
+      {
+        nose: 'n', palate: 'p', finish: 'f', rating: 7,
+        flavorTags: { ...EMPTY_FLAVOR, sweet: 2 },
+      },
+      'author-token',
+    )
+    await expect(
+      api.updateNote(
+        'c-huila',
+        note.id,
+        {
+          nose: 'hijack', palate: 'p', finish: 'f', rating: 1,
+          flavorTags: { ...EMPTY_FLAVOR },
+        },
+        'other-token',
+      ),
+    ).rejects.toMatchObject({ status: 403 })
   })
 
   it('per-type fields survive create and update round-trips', async () => {

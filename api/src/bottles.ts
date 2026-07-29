@@ -14,7 +14,7 @@ import {
   toBottle,
   toNote,
 } from './store'
-import type { BottleItem } from './types'
+import { normalizeRoast, type BottleItem } from './types'
 
 const str = (v: unknown, max: number): string | undefined =>
   typeof v === 'string' && v.trim().length > 0 && v.length <= max
@@ -98,10 +98,11 @@ export async function handleCreateBottle(
     return json(400, { error: 'price must be a non-negative number or null' }, origin)
   }
   // Optional per-type fields, additive. Undefined when absent/blank/null so
-  // DDB stores nothing.
+  // DDB stores nothing. Roast is canonicalized ("Light" -> "light").
   const grape = r.grape === undefined ? undefined : str(r.grape, 120)
   const style = r.style === undefined ? undefined : str(r.style, 120)
-  const roast = r.roast === undefined ? undefined : str(r.roast, 120)
+  const rawRoast = r.roast === undefined ? undefined : str(r.roast, 120)
+  const roast = rawRoast === undefined ? undefined : normalizeRoast(rawRoast)
   const process = r.process === undefined ? undefined : str(r.process, 120)
 
   const id = randomUUID()
@@ -190,7 +191,8 @@ export async function handleUpdateBottle(
     next.style = r.style === null ? undefined : str(r.style, 120)
   }
   if (r.roast !== undefined) {
-    next.roast = r.roast === null ? undefined : str(r.roast, 120)
+    const v = r.roast === null ? undefined : str(r.roast, 120)
+    next.roast = v === undefined ? undefined : normalizeRoast(v)
   }
   if (r.process !== undefined) {
     next.process = r.process === null ? undefined : str(r.process, 120)
