@@ -22,11 +22,11 @@ import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
 import {
+  Field,
   Panel,
   buttonClass,
   ghostButtonClass,
   inputClass,
-  labelClass,
   ErrorNote,
   Spinner,
 } from './ui'
@@ -325,20 +325,5 @@ export default function BottleForm({ editId, initialFamily }: Props) {
         </form>
       </Panel>
     </div>
-  )
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className={labelClass}>{label}</span>
-      {children}
-    </label>
   )
 }

@@ -14,8 +14,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Bottle, CigarStrength, PairingRequest } from '../lib/types'
-import { familyOf } from '../lib/types'
+import { PAIRING_LIMITS, familyOf } from '../lib/types'
 import { getApi } from '../lib/api'
+import { capitalize } from '../lib/recommend'
 import {
   CIGAR_BRANDS,
   FOOD_OCCASIONS,
@@ -38,6 +39,7 @@ import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
 import Narration, { type NarrationLink } from './Narration'
 import {
+  Field,
   Panel,
   SectionTitle,
   Segmented,
@@ -120,6 +122,9 @@ export default function PairingPage({ onRequireAuth }: Props) {
     () => (all ?? []).filter((b) => familyOf(b.type) === 'alcohol'),
     [all],
   )
+  // Loaded or failed: either way the form can go — menu tips need no
+  // cabinet, and the narration reasons over the server's copy.
+  const cabinetSettled = all !== null || loadError !== null
 
   const occasion: Occasion | null = useMemo(() => {
     if (!submitted) return null
@@ -224,6 +229,7 @@ export default function PairingPage({ onRequireAuth }: Props) {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="ribeye · oysters · spicy green curry · cheese board"
+                maxLength={PAIRING_LIMITS.text}
                 autoComplete="off"
                 enterKeyHint="search"
               />
@@ -238,6 +244,7 @@ export default function PairingPage({ onRequireAuth }: Props) {
                     value={brand}
                     onChange={(e) => setBrand(e.target.value)}
                     placeholder="Padrón · Arturo Fuente · Montecristo"
+                    maxLength={PAIRING_LIMITS.field}
                     autoComplete="off"
                   />
                   <datalist id="cigar-brands">
@@ -252,6 +259,7 @@ export default function PairingPage({ onRequireAuth }: Props) {
                     value={line}
                     onChange={(e) => setLine(e.target.value)}
                     placeholder="1964 Anniversary Maduro · Torpedo"
+                    maxLength={PAIRING_LIMITS.field}
                     autoComplete="off"
                   />
                 </Field>
@@ -294,7 +302,7 @@ export default function PairingPage({ onRequireAuth }: Props) {
           <div>
             <button
               className={buttonClass}
-              disabled={!all || (kind === 'food' && text.trim() === '')}
+              disabled={!cabinetSettled || (kind === 'food' && text.trim() === '')}
             >
               Pair it
             </button>
@@ -346,7 +354,12 @@ export default function PairingPage({ onRequireAuth }: Props) {
                 >
                   What to pour
                 </SectionTitle>
-                {cabinet.length === 0 ? (
+                {loadError ? (
+                  <p className="text-muted text-sm">
+                    Couldn’t load your cabinet, so there’s nothing to rank —
+                    the menu tips below still apply.
+                  </p>
+                ) : cabinet.length === 0 ? (
                   <p className="text-muted text-sm">
                     Your cabinet is empty — log a few bottles and they’ll be
                     ranked here.
@@ -505,23 +518,4 @@ function BottleLink({ bottle }: { bottle: Bottle }) {
       {bottle.name}
     </button>
   )
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className={labelClass}>{label}</span>
-      {children}
-    </label>
-  )
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }

@@ -18,6 +18,7 @@ import { NOTE_FIELD_LABELS } from '../lib/noteFields'
 import { useAuth } from './AuthContext'
 import RadarChart from './RadarChart'
 import {
+  Field,
   buttonClass,
   ghostButtonClass,
   inputClass,
@@ -267,20 +268,5 @@ export default function NoteForm({
         </button>
       </div>
     </form>
-  )
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className={labelClass}>{label}</span>
-      {children}
-    </label>
   )
 }

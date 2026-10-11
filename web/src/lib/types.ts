@@ -68,11 +68,17 @@ export const BOTTLE_TYPES: readonly BottleType[] = TYPE_GROUPS.flatMap(
   (g) => g.types,
 )
 
+/** Types are free-form on the wire; compare them the way familyOf does so an
+ *  API-written "Scotch" is still scotch. */
+export function canonicalType(type: string): string {
+  return type.trim().toLowerCase()
+}
+
 /** The group a type belongs to (`whisky`, `wine`…); undefined for free-form
  *  values stored outside the canon. */
 export function typeGroupOf(type: string): TypeGroupId | undefined {
-  return TYPE_GROUPS.find((g) => (g.types as readonly string[]).includes(type))
-    ?.id
+  const t = canonicalType(type)
+  return TYPE_GROUPS.find((g) => (g.types as readonly string[]).includes(t))?.id
 }
 
 /**
@@ -217,6 +223,19 @@ export type PairingRequest =
       wrapper?: string
       candidateIds?: string[]
     }
+
+/** Input limits the API enforces on POST /pairings (400 beyond them); the
+ *  form caps its fields to match so a long paste can't silently lose the
+ *  narration. Mirrored in api/src/types.ts. */
+export const PAIRING_LIMITS = {
+  /** The dish, as typed. */
+  text: 200,
+  /** Cigar brand / line. */
+  field: 80,
+  wrapper: 40,
+  /** Shortlisted bottle ids sent along for the narration. */
+  candidates: 5,
+} as const
 
 /** Response shape for POST /pairings. `narration` is null (and `degraded`
  *  true) when the narration layer was unavailable — the client's structured

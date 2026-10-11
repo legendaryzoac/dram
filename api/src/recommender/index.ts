@@ -76,7 +76,8 @@ function toStructured(b: CorpusBottle): StructuredBottle {
   }
 }
 
-function avgRating(notes: NoteItem[]): number | null {
+/** Mean note rating, or null with no notes (shared with the pairing prompt). */
+export function avgRating(notes: NoteItem[]): number | null {
   if (notes.length === 0) return null
   return notes.reduce((a, n) => a + n.rating, 0) / notes.length
 }

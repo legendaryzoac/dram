@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BottleItem, NoteItem } from './types'
 import type { CorpusBottle } from './recommender'
-import { cabinetLines, describeOccasion, parsePairingBody } from './pairings'
+import { cabinetLines, cabinetOnly, describeOccasion, parsePairingBody } from './pairings'
 
 function bottle(id: string, name: string, type: string, style?: string): BottleItem {
   return {
@@ -94,10 +94,14 @@ describe('cabinetLines', () => {
     { item: bottle('b4', 'Fortaleza Blanco', 'tequila', 'blanco'), notes: [note('b4', 9, 'x'.repeat(200))] },
   ]
 
-  it('lists alcohol only, best-rated first (ties by name), unrated last', () => {
-    const lines = cabinetLines(corpus)
+  it('cabinetOnly drops coffee', () => {
+    expect(cabinetOnly(corpus).map((b) => b.item.name)).not.toContain('Sumatra')
+    expect(cabinetOnly(corpus)).toHaveLength(4)
+  })
+
+  it('lists best-rated first (ties by name), unrated last', () => {
+    const lines = cabinetLines(cabinetOnly(corpus))
     expect(lines).toHaveLength(4)
-    expect(lines.join('\n')).not.toMatch(/Sumatra/)
     expect(lines[0]).toMatch(/^Fortaleza Blanco — tequila, blanco, Somewhere, 43% · rated 9\/10/)
     // Buffalo Trace (8) and Lagavulin (avg of 9 and 7 = 8) tie; name breaks it.
     expect(lines[1]).toMatch(/^Buffalo Trace — bourbon, Somewhere, 43% · rated 8\/10 · "Brown sugar, toffee, oak\."/)
@@ -106,9 +110,19 @@ describe('cabinetLines', () => {
   })
 
   it('truncates long notes and respects the cap', () => {
-    const lines = cabinetLines(corpus)
+    const lines = cabinetLines(cabinetOnly(corpus))
     expect(lines[0].length).toBeLessThan(200)
     expect(lines[0]).toMatch(/…"$/)
-    expect(cabinetLines(corpus, 2)).toHaveLength(2)
+    expect(cabinetLines(cabinetOnly(corpus), 2)).toHaveLength(2)
+  })
+
+  it('keeps shortlisted bottles inside the cap, in rating order', () => {
+    // Cap of 2 would normally cut the unrated Malbec; the shortlist pins it.
+    const lines = cabinetLines(cabinetOnly(corpus), 2, new Set(['b3']))
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toMatch(/^Fortaleza Blanco/)
+    expect(lines[1]).toMatch(/^Mystery Malbec/)
+    // Pinned ids never push the list past the cap.
+    expect(cabinetLines(cabinetOnly(corpus), 1, new Set(['b1', 'b3']))).toHaveLength(2)
   })
 })

@@ -573,6 +573,18 @@ describe('handler routing', () => {
         },
       }),
     )
+    // The drinker's single highest-rated note is a coffee — it must not
+    // become a pairing "favourite", since coffee can't be poured here.
+    await handler(
+      makeEvent('POST /bottles/{id}/notes', {
+        authed: true,
+        pathParameters: { id: ids['Sumatra'] },
+        body: {
+          nose: 'cocoa', palate: 'molasses and smoke', finish: 'long', rating: 10,
+          flavorTags: { sweet: 2, smoky: 3, fruity: 1, oaky: 3, spicy: 2 },
+        },
+      }),
+    )
 
     vi.mocked(narratePairing).mockResolvedValueOnce('Pour the Lagavulin 16.')
     const res = parse(
@@ -597,6 +609,7 @@ describe('handler routing', () => {
     expect(input.cabinet).toHaveLength(2)
     expect(input.cabinet.join('\n')).not.toMatch(/Sumatra/)
     expect(input.shortlist).toEqual(['Lagavulin 16'])
+    expect(input.highlights).toHaveLength(1)
     expect(input.highlights[0]).toMatch(/Lagavulin 16 \(rated 9\/10\)/)
   })
 

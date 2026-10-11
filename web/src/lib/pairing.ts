@@ -17,7 +17,8 @@
  * drinker submits a pairing; nothing here calls the network.
  */
 import type { Bottle, CigarStrength, FlavorTags } from './types'
-import { FLAVOR_AXES, familyOf, typeGroupOf } from './types'
+import { FLAVOR_AXES, canonicalType, familyOf, typeGroupOf } from './types'
+import { capitalize, cosine, flavorVector, sharedFlavors } from './recommend'
 
 // ---- shapes ----
 
@@ -182,9 +183,9 @@ export const FOOD_OCCASIONS: readonly FoodOccasion[] = [
     label: 'Chicken, pork & roasts',
     short: 'the roast',
     keywords: [
-      'chicken', 'roast chicken', 'rotisserie', 'turkey', 'pork', 'pork chop',
-      'pork belly', 'tenderloin', 'schnitzel', 'veal', 'ham', 'porchetta', 'roast',
-      'thanksgiving', 'katsu', 'tonkatsu', 'rabbit',
+      'chicken', 'roast chicken', 'rotisserie', 'turkey', 'roast turkey', 'pork',
+      'pork chop', 'pork belly', 'roast pork', 'tenderloin', 'schnitzel', 'veal',
+      'ham', 'porchetta', 'thanksgiving', 'katsu', 'tonkatsu', 'rabbit',
     ],
     target: F(3, 4, 1, 3, 3, 3, 1, 2),
     affinity: {
@@ -583,8 +584,15 @@ export const WRAPPERS = [
 ] as const
 export type Wrapper = (typeof WRAPPERS)[number]
 
-/** Words in a brand/line that imply a wrapper. */
+/** Words in a brand/line that imply a wrapper. First match wins, so the
+ *  dark leaves sit first: "Connecticut Broadleaf" is a maduro leaf grown in
+ *  Connecticut, not the shade-grown wrapper the state's name usually means. */
 const WRAPPER_WORDS: Array<[string, Wrapper]> = [
+  ['connecticut broadleaf', 'maduro'],
+  ['broadleaf', 'maduro'],
+  ['san andres', 'maduro'],
+  ['maduro', 'maduro'],
+  ['oscuro', 'oscuro'],
   ['connecticut', 'connecticut'],
   ['shade', 'connecticut'],
   ['claro', 'connecticut'],
@@ -594,10 +602,6 @@ const WRAPPER_WORDS: Array<[string, Wrapper]> = [
   ['corojo', 'corojo'],
   ['cameroon', 'cameroon'],
   ['sumatra', 'sumatra'],
-  ['maduro', 'maduro'],
-  ['broadleaf', 'maduro'],
-  ['san andres', 'maduro'],
-  ['oscuro', 'oscuro'],
   ['candela', 'candela'],
 ]
 
@@ -666,8 +670,8 @@ export const CIGAR_BRANDS: readonly CigarBrand[] = [
   { match: ['oliva connecticut'], name: 'Oliva Connecticut Reserve', strength: 'mild', wrapper: 'connecticut', notes: 'cream, cedar, nuts' },
   { match: ['oliva'], name: 'Oliva', strength: 'medium', notes: 'cedar, cocoa, pepper' },
   { match: ['le bijou'], name: 'My Father Le Bijou 1922', strength: 'full', wrapper: 'oscuro', notes: 'dark cocoa, pepper, leather' },
+  { match: ['flor de las antillas'], name: 'My Father Flor de las Antillas', strength: 'medium', notes: 'cedar, cocoa, baking spice' },
   { match: ['my father'], name: 'My Father', strength: 'full', wrapper: 'habano', notes: 'pepper, cocoa, leather, coffee' },
-  { match: ['flor de las antillas'], name: 'Flor de las Antillas', strength: 'medium', notes: 'cedar, cocoa, baking spice' },
   { match: ['liga privada'], name: 'Liga Privada', strength: 'full', wrapper: 'maduro', notes: 'dark chocolate, espresso, earth' },
   { match: ['undercrown shade'], name: 'Undercrown Shade', strength: 'mild', wrapper: 'connecticut', notes: 'cream, cedar, white pepper' },
   { match: ['undercrown'], name: 'Undercrown', strength: 'medium', wrapper: 'maduro', notes: 'cocoa, espresso, cedar' },
@@ -936,34 +940,18 @@ export function cigarOccasion(c: ResolvedCigar): Occasion {
 const NEUTRAL_AFFINITY = 0.3
 
 export function affinityFor(occasion: Occasion, type: string): number {
-  const direct = occasion.affinity[type]
+  const t = canonicalType(type)
+  const direct = occasion.affinity[t]
   if (direct !== undefined) return direct
-  const group = typeGroupOf(type)
+  const group = typeGroupOf(t)
   if (group === undefined || group === 'other') return NEUTRAL_AFFINITY
   return occasion.affinity[group] ?? 0
 }
 
-function vec(f: FlavorTags): number[] {
-  return FLAVOR_AXES.map((axis) => f[axis])
-}
-
-function cosine(a: number[], b: number[]): number {
-  let dot = 0
-  let na = 0
-  let nb = 0
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i]
-    na += a[i] * a[i]
-    nb += b[i] * b[i]
-  }
-  if (na === 0 || nb === 0) return 0
-  return dot / (Math.sqrt(na) * Math.sqrt(nb))
-}
-
 /** Axes both the occasion and the bottle lean on, strongest in the bottle first. */
 function sharedAxes(target: FlavorTags, profile: FlavorTags): string[] {
-  return FLAVOR_AXES.filter((axis) => target[axis] >= 3 && profile[axis] >= 3).sort(
-    (a, b) => profile[b] - profile[a],
+  return sharedFlavors(target, profile).sort(
+    (a, b) => profile[b as keyof FlavorTags] - profile[a as keyof FlavorTags],
   )
 }
 
@@ -980,26 +968,25 @@ const NO_PROFILE_SIMILARITY = 0.5
 /**
  * Rank the cabinet (coffee excluded) for an occasion. Score blends flavor
  * similarity to the target (45%), type affinity (40%), and the drinker's own
- * rating (15%); with no target (unknown dish) it is affinity + rating only.
+ * rating (15%). With no target (an unknown dish) there is nothing to pair
+ * against, so it is the drinker's rating alone — their best-rated bottles.
  */
 export function rankPairings(
   occasion: Occasion,
   bottles: Bottle[],
   limit = 5,
 ): PairingPick[] {
-  const targetVec = occasion.target ? vec(occasion.target) : null
+  const targetVec = occasion.target ? flavorVector(occasion.target) : null
   return bottles
     .filter((b) => familyOf(b.type) === 'alcohol')
     .map((b) => {
       const aff = affinityFor(occasion, b.type)
       const sim =
         targetVec && b.flavorProfile
-          ? cosine(targetVec, vec(b.flavorProfile))
+          ? cosine(targetVec, flavorVector(b.flavorProfile))
           : NO_PROFILE_SIMILARITY
       const love = (b.avgRating ?? DEFAULT_RATING) / 10
-      const score = targetVec
-        ? 0.45 * sim + 0.4 * aff + 0.15 * love
-        : 0.4 * aff + 0.6 * love
+      const score = targetVec ? 0.45 * sim + 0.4 * aff + 0.15 * love : love
       return {
         bottle: b,
         score: Math.round(Math.max(0, Math.min(1, score)) * 100) / 100,
@@ -1026,10 +1013,6 @@ function reasonFor(occasion: Occasion, b: Bottle, aff: number): string {
   return capitalize(bits.slice(0, 2).join(' · ') || 'a reasonable match')
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
 // ---- ordering off a menu ----
 
 export interface OrderTip extends OrderSuggestion {
@@ -1049,7 +1032,8 @@ export function orderTips(occasion: Occasion, bottles: Bottle[]): OrderTip[] {
         .filter(
           (b) =>
             (b.avgRating ?? 0) >= FAVORITE_MIN_RATING &&
-            (kinds.has(b.type) || kinds.has(typeGroupOf(b.type) ?? '')),
+            (kinds.has(canonicalType(b.type)) ||
+              kinds.has(typeGroupOf(b.type) ?? '')),
         )
         .sort((a, b) => (b.avgRating ?? 0) - (a.avgRating ?? 0))[0] ?? null
     return { ...o, favorite }

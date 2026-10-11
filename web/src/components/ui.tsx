@@ -56,6 +56,22 @@ export function SectionTitle({
   )
 }
 
+/** A labelled form field: uppercase mono label over the control. */
+export function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className={labelClass}>{label}</span>
+      {children}
+    </label>
+  )
+}
+
 /** Small rounded pill — used for type/region tags and rating chips. */
 export function Tag({
   children,

@@ -8,11 +8,14 @@
 import type { Bottle, FlavorTags } from './types'
 import { FLAVOR_AXES } from './types'
 
-function flavorVector(f: FlavorTags): number[] {
-  return FLAVOR_AXES.map((axis) => f[axis])
+/** The eight axes as a vector, in FLAVOR_AXES order. An axis missing from
+ *  a profile (an API build that predates the 8-axis expansion) reads 0
+ *  rather than NaN-poisoning the cosine. Shared with the pairing engine. */
+export function flavorVector(f: Partial<FlavorTags>): number[] {
+  return FLAVOR_AXES.map((axis) => f[axis] ?? 0)
 }
 
-function cosine(a: number[], b: number[]): number {
+export function cosine(a: number[], b: number[]): number {
   let dot = 0
   let na = 0
   let nb = 0
@@ -106,7 +109,8 @@ export function rankByTasteProfile(
     .sort((a, b) => b.score - a.score)
 }
 
-function sharedFlavors(a: FlavorTags, b: FlavorTags): string[] {
+/** Axes both profiles lean on (>= 3), in FLAVOR_AXES order. */
+export function sharedFlavors(a: FlavorTags, b: FlavorTags): string[] {
   return FLAVOR_AXES.filter((axis) => a[axis] >= 3 && b[axis] >= 3)
 }
 
@@ -114,6 +118,6 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n))
 }
 
-function capitalize(s: string): string {
+export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }

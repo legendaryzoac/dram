@@ -94,6 +94,14 @@ describe('matchFood', () => {
     expect(normalizeText('  Crème-Brûlée! ')).toBe('creme brulee')
   })
 
+  it('lets the meat name win over a bare "roast"', () => {
+    expect(matchFood('roast lamb')?.id).toBe('steak')
+    expect(matchFood('roast duck')?.id).toBe('duck-game')
+    expect(matchFood('roast pork')?.id).toBe('poultry-pork')
+    expect(matchFood('roast chicken')?.id).toBe('poultry-pork')
+    expect(matchFood('roast beef')?.id).toBe('steak')
+  })
+
   it('returns null for blank or unknown dishes', () => {
     expect(matchFood('')).toBeNull()
     expect(matchFood('   ')).toBeNull()
@@ -137,6 +145,30 @@ describe('rankPairings', () => {
     const picks = rankPairings(UNKNOWN_OCCASION, [sauvBlanc(), lagavulin(), bourbon()])
     expect(picks[0].bottle.name).toBe('Lagavulin 16')
     expect(picks[0].reason).toMatch(/rated it 9/)
+    // Nothing but the rating: an `other` bottle gets no neutral-affinity leg up.
+    const mixed = rankPairings(UNKNOWN_OCCASION, [
+      bottle('House Sake', 'other', { sweet: 3 }, 7),
+      bottle('Oban 14', 'scotch', { body: 3 }, 8),
+    ])
+    expect(mixed.map((p) => p.bottle.name)).toEqual(['Oban 14', 'House Sake'])
+    expect(mixed.map((p) => p.score)).toEqual([0.8, 0.7])
+  })
+
+  it('survives a five-axis profile from a pre-expansion API build', () => {
+    const legacy = bottle('Old Build Bourbon', 'bourbon', null, 8)
+    // Only the original five axes, as an un-redeployed API would serve.
+    legacy.flavorProfile = { sweet: 4, smoky: 1, fruity: 2, oaky: 4, spicy: 3 } as FlavorTags
+    const picks = rankPairings(matchFood('steak')!, [legacy, sauvBlanc()])
+    expect(Number.isFinite(picks[0].score)).toBe(true)
+    expect(picks[0].bottle.name).toBe('Old Build Bourbon')
+  })
+
+  it('matches API-written type casing to the canon', () => {
+    const steak = matchFood('steak')!
+    expect(affinityFor(steak, 'Scotch')).toBe(affinityFor(steak, 'scotch'))
+    expect(affinityFor(steak, ' Red Wine ')).toBe(1)
+    const tips = orderTips(steak, [bottle('Shouty Cab', 'Red Wine', { body: 5 }, 9)])
+    expect(tips[0].favorite?.name).toBe('Shouty Cab')
   })
 
   it('still places a noteless bottle on type affinity', () => {
@@ -217,6 +249,15 @@ describe('cigars', () => {
     expect(resolveCigar({ brand: 'Liga Privada', line: 'No. 9' }).wrapper).toBe('maduro')
     expect(resolveCigar({ brand: 'Davidoff', wrapper: 'habano' }).wrapper).toBe('habano')
     expect(resolveCigar({ brand: 'Unknown' }).wrapper).toBeNull()
+    // Broadleaf grown in Connecticut is a maduro leaf, not the shade wrapper.
+    expect(resolveCigar({ line: 'Connecticut Broadleaf' }).wrapper).toBe('maduro')
+    expect(resolveCigar({ line: 'Connecticut Shade' }).wrapper).toBe('connecticut')
+  })
+
+  it('lets a named line beat its house in the brand table', () => {
+    expect(resolveCigar({ brand: 'My Father' }).strength).toBe('full')
+    expect(resolveCigar({ brand: 'My Father', line: 'Flor de las Antillas' }).strength).toBe('medium')
+    expect(resolveCigar({ brand: 'Drew Estate', line: 'Undercrown Shade' }).strength).toBe('mild')
   })
 
   it('builds a heavier target and affinity set for a full maduro than a mild Connecticut', () => {

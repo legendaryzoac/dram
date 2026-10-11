@@ -158,6 +158,15 @@ export type PairingRequest =
       candidateIds?: string[]
     }
 
+/** Input limits enforced on POST /pairings (400 beyond them). Mirrored in
+ *  web/src/lib/types.ts so the form caps its fields to match. */
+export const PAIRING_LIMITS = {
+  text: 200,
+  field: 80,
+  wrapper: 40,
+  candidates: 5,
+} as const
+
 /** Response shape for POST /pairings. `narration` is null (and `degraded`
  *  true) when the narration layer was unavailable. */
 export interface PairingNarration {

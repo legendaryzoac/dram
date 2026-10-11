@@ -4,12 +4,12 @@ import type {
 } from 'aws-lambda'
 import { narratePairing } from './bedrock'
 import { json } from './http'
-import { topHighlights, type CorpusBottle } from './recommender'
+import { avgRating, topHighlights, type CorpusBottle } from './recommender'
 import { listBottleItems, loadNotes } from './store'
 import {
+  PAIRING_LIMITS,
   familyOf,
   type CigarStrength,
-  type NoteItem,
   type PairingNarration,
 } from './types'
 
@@ -25,10 +25,10 @@ import {
  */
 
 const STRENGTHS: ReadonlySet<string> = new Set(['mild', 'medium', 'full'])
-const MAX_TEXT = 200
-const MAX_FIELD = 80
-const MAX_WRAPPER = 40
-const MAX_CANDIDATES = 5
+const MAX_TEXT = PAIRING_LIMITS.text
+const MAX_FIELD = PAIRING_LIMITS.field
+const MAX_WRAPPER = PAIRING_LIMITS.wrapper
+const MAX_CANDIDATES = PAIRING_LIMITS.candidates
 const MAX_CANDIDATE_ID = 64
 /** Cap on cabinet lines in the prompt — a big cabinet stays a small prompt. */
 const MAX_CABINET_LINES = 40
@@ -128,34 +128,43 @@ export function describeOccasion(p: ParsedPairing): string {
   return `a cigar — ${name} · strength: ${p.strength}${wrapper}`
 }
 
-function avgRating(notes: NoteItem[]): number | null {
-  if (notes.length === 0) return null
-  return notes.reduce((a, n) => a + n.rating, 0) / notes.length
-}
-
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`
 }
 
+/** The pairing candidates: coffee is logged beside the cabinet but is never
+ *  what gets poured with the steak or the cigar. */
+export function cabinetOnly(corpus: CorpusBottle[]): CorpusBottle[] {
+  return corpus.filter((b) => familyOf(b.item.type_) === 'alcohol')
+}
+
 /**
- * The cabinet as prompt context: alcohol only (coffee is logged beside it
- * but isn't a pairing candidate), best-rated first with unrated bottles
- * last, capped. Each line carries the drinker's top note for that bottle so
- * the model reasons from their palate, not just the label.
+ * The cabinet as prompt context: best-rated first with unrated bottles
+ * last, capped so a big cabinet stays a small prompt. Bottles in `keep`
+ * (the client's shortlist) always make the cut, since the prompt forbids
+ * naming anything outside this block. Each line carries the drinker's top
+ * note for that bottle so the model reasons from their palate, not just
+ * the label.
  */
 export function cabinetLines(
-  corpus: CorpusBottle[],
+  cabinet: CorpusBottle[],
   max = MAX_CABINET_LINES,
+  keep: ReadonlySet<string> = new Set(),
 ): string[] {
-  return corpus
-    .filter((b) => familyOf(b.item.type_) === 'alcohol')
+  const ranked = cabinet
     .map((b) => ({ b, rating: avgRating(b.notes) }))
     .sort(
       (x, y) =>
         (y.rating ?? -1) - (x.rating ?? -1) ||
         x.b.item.name.localeCompare(y.b.item.name),
     )
-    .slice(0, max)
+  const kept = ranked.filter(({ b }) => keep.has(b.item.id))
+  const rest = ranked
+    .filter(({ b }) => !keep.has(b.item.id))
+    .slice(0, Math.max(0, max - kept.length))
+  const chosen = new Set([...kept, ...rest].map(({ b }) => b.item.id))
+  return ranked
+    .filter(({ b }) => chosen.has(b.item.id))
     .map(({ b, rating }) => {
       const { item } = b
       const top = b.notes.slice().sort((a, c) => c.rating - a.rating)[0]
@@ -188,26 +197,29 @@ export async function handlePairing(
     )
   }
 
+  // Notes load in parallel: personal scale, dozens of small Queries.
   const items = await listBottleItems()
-  const corpus: CorpusBottle[] = []
-  for (const item of items) {
-    corpus.push({ item, notes: await loadNotes(item.id) })
-  }
+  const cabinet = cabinetOnly(
+    await Promise.all(
+      items.map(async (item) => ({ item, notes: await loadNotes(item.id) })),
+    ),
+  )
 
-  // The shortlist comes back by name from the corpus, never from the client:
-  // unknown ids are simply dropped.
-  const nameById = new Map(corpus.map((b) => [b.item.id, b.item.name]))
-  const shortlist = parsed.candidateIds
-    .map((id) => nameById.get(id))
-    .filter((n): n is string => n !== undefined)
+  // The shortlist comes back by name from the cabinet, never from the
+  // client: unknown ids (and coffee) are simply dropped.
+  const nameById = new Map(cabinet.map((b) => [b.item.id, b.item.name]))
+  const keep = new Set(parsed.candidateIds.filter((id) => nameById.has(id)))
+  const shortlist = [...keep].map((id) => nameById.get(id)!)
 
   try {
     const narration = await narratePairing({
       occasion: describeOccasion(parsed),
       kindWord: parsed.kind === 'food' ? 'dish' : 'cigar',
-      cabinet: cabinetLines(corpus),
+      cabinet: cabinetLines(cabinet, MAX_CABINET_LINES, keep),
       shortlist,
-      highlights: topHighlights(corpus),
+      // Favourites from the cabinet only, so a loved coffee never steers a
+      // pairing toward something that can't be poured.
+      highlights: topHighlights(cabinet),
     })
     return json(200, { narration, degraded: false } satisfies PairingNarration, origin)
   } catch (err) {
