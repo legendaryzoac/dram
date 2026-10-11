@@ -49,8 +49,12 @@ vi.mock('./bedrock', () => ({
   narrate: vi.fn(async () => {
     throw new Error('AccessDeniedException')
   }),
+  narratePairing: vi.fn(async () => {
+    throw new Error('AccessDeniedException')
+  }),
 }))
 
+import { narratePairing } from './bedrock'
 import { handler } from './handler'
 
 function makeEvent(
@@ -519,6 +523,81 @@ describe('handler routing', () => {
     // narration attempt failing.
     expect(res.body.basis).toBe('structured')
     expect(res.body.recommendations.length).toBeGreaterThan(0)
+  })
+
+  it('POST /pairings without auth -> 401', async () => {
+    const res = parse(
+      await handler(makeEvent('POST /pairings', { body: { kind: 'food', text: 'ribeye' } })),
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('POST /pairings with a bad body -> 400', async () => {
+    for (const body of [
+      { kind: 'food' },
+      { kind: 'cigar', strength: 'nuclear' },
+      { kind: 'beer', text: 'x' },
+    ]) {
+      const res = parse(await handler(makeEvent('POST /pairings', { authed: true, body })))
+      expect(res.status).toBe(400)
+    }
+  })
+
+  it('POST /pairings degrades to no narration when Bedrock is down', async () => {
+    const res = parse(
+      await handler(
+        makeEvent('POST /pairings', { authed: true, body: { kind: 'food', text: 'ribeye' } }),
+      ),
+    )
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ narration: null, degraded: true })
+  })
+
+  it('POST /pairings narrates over the cabinet, resolving the shortlist by id', async () => {
+    const ids: Record<string, string> = {}
+    for (const body of [
+      { name: 'Lagavulin 16', producer: 'p', region: 'Islay', type: 'scotch', abv: 43 },
+      { name: 'Caymus Cabernet', producer: 'p', region: 'Napa', type: 'red wine', abv: 15 },
+      { name: 'Sumatra', producer: 'p', region: 'Indonesia', type: 'coffee', abv: 0 },
+    ]) {
+      const made = parse(await handler(makeEvent('POST /bottles', { authed: true, body })))
+      ids[body.name] = made.body.id
+    }
+    await handler(
+      makeEvent('POST /bottles/{id}/notes', {
+        authed: true,
+        pathParameters: { id: ids['Lagavulin 16'] },
+        body: {
+          nose: 'peat', palate: 'smoke and brine', finish: 'long', rating: 9,
+          flavorTags: { sweet: 1, smoky: 5, fruity: 2, oaky: 3, spicy: 2 },
+        },
+      }),
+    )
+
+    vi.mocked(narratePairing).mockResolvedValueOnce('Pour the Lagavulin 16.')
+    const res = parse(
+      await handler(
+        makeEvent('POST /pairings', {
+          authed: true,
+          body: {
+            kind: 'cigar', brand: 'Padrón', strength: 'full', wrapper: 'maduro',
+            candidateIds: [ids['Lagavulin 16'], 'ghost-id'],
+          },
+        }),
+      ),
+    )
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ narration: 'Pour the Lagavulin 16.', degraded: false })
+
+    const input = vi.mocked(narratePairing).mock.calls.at(-1)![0]
+    expect(input.kindWord).toBe('cigar')
+    expect(input.occasion).toBe('a cigar — Padrón · strength: full · wrapper: maduro')
+    // Rated bottle first, with its note; coffee never appears; unknown ids dropped.
+    expect(input.cabinet[0]).toMatch(/^Lagavulin 16 — scotch, Islay, 43% · rated 9\/10 · "smoke and brine"/)
+    expect(input.cabinet).toHaveLength(2)
+    expect(input.cabinet.join('\n')).not.toMatch(/Sumatra/)
+    expect(input.shortlist).toEqual(['Lagavulin 16'])
+    expect(input.highlights[0]).toMatch(/Lagavulin 16 \(rated 9\/10\)/)
   })
 
   it('recommendations stay in-family and surface the other family via crossFamily', async () => {

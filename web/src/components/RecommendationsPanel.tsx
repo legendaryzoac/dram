@@ -7,7 +7,8 @@
  *   - the ranked same-family recommendations with score bar and `reason`,
  *   - an "Across the aisle" section bridging coffee ↔ the cabinet whenever
  *     the other family has matches (`crossFamily`),
- *   - the `narration` prose when the narrated layer produced it,
+ *   - the `narration` prose when the narrated layer produced it (bottle
+ *     names in it link to their pages),
  *   - a subtle banner when the result is `degraded` (a lower layer answered).
  */
 import { useEffect, useState } from 'react'
@@ -18,8 +19,8 @@ import type {
 } from '../lib/types'
 import { isCoffee } from '../lib/types'
 import { getApi } from '../lib/api'
-import { tokenizeInline } from '../lib/inlineMarkdown'
 import { href, navigate } from '../lib/router'
+import Narration from './Narration'
 import { Panel, SectionTitle, Spinner, ErrorNote } from './ui'
 
 /** Human-readable label + tone for each recommender basis. */
@@ -151,33 +152,18 @@ export default function RecommendationsPanel({
                 <span aria-hidden>✦</span> narrated pick
               </div>
               <p className="text-fg/90 text-sm leading-relaxed">
-                <Narration text={result.narration} />
+                <Narration
+                  text={result.narration}
+                  links={[...result.recommendations, ...crossFamily].map(
+                    (r) => ({ name: r.name, id: r.bottleId }),
+                  )}
+                />
               </p>
             </div>
           )}
         </div>
       )}
     </Panel>
-  )
-}
-
-/** Narration prose with bold and italic asterisk markers rendered as real
- *  emphasis — the model sometimes emits markdown despite instructions. */
-function Narration({ text }: { text: string }) {
-  return (
-    <>
-      {tokenizeInline(text).map((t, i) =>
-        t.kind === 'bold' ? (
-          <strong key={i} className="text-fg font-semibold">
-            {t.text}
-          </strong>
-        ) : t.kind === 'italic' ? (
-          <em key={i}>{t.text}</em>
-        ) : (
-          <span key={i}>{t.text}</span>
-        ),
-      )}
-    </>
   )
 }
 

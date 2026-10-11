@@ -5,6 +5,7 @@ import BottleList from './components/BottleList'
 import BottleDetail from './components/BottleDetail'
 import BottleForm from './components/BottleForm'
 import AccountPage from './components/AccountPage'
+import PairingPage from './components/PairingPage'
 import AuthModal from './components/AuthModal'
 import { AuthProvider } from './components/AuthContext'
 import { useRoute } from './lib/router'
@@ -28,6 +29,8 @@ function Routed({ onRequireAuth }: { onRequireAuth: () => void }) {
       return <BottleForm key={`add-${route.family}`} initialFamily={route.family} />
     case 'edit':
       return <BottleForm key={`edit-${route.id}`} editId={route.id} />
+    case 'pair':
+      return <PairingPage onRequireAuth={onRequireAuth} />
     case 'account':
       return <AccountPage onRequireAuth={onRequireAuth} />
     case 'list':
@@ -52,7 +55,13 @@ function Inner() {
     <div className="flex min-h-dvh flex-col">
       <SiteNav
         badge={USE_MOCK ? 'mock API · demo data' : 'live API'}
-        active={route.name === 'list' ? route.family : undefined}
+        active={
+          route.name === 'list'
+            ? route.family
+            : route.name === 'pair'
+              ? 'pair'
+              : undefined
+        }
       />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-5 pt-[76px] pb-6 sm:px-8">

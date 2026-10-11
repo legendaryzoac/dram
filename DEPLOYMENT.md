@@ -124,6 +124,14 @@ flavor axes on notes are silently dropped at write time (HTTP 200, value never s
 unrecoverable after redeploy). The new web tolerates old-API *reads* (missing
 `crossFamily`, 5-axis profiles) by design.
 
+**New routes** follow the same order. `POST /pairings` (the pairing tab's narrated
+layer) needs `npm run deploy -w infra` to exist: it adds the HTTP API route (behind the
+JWT authorizer) and ships the Lambda that calls Haiku. Until then the web's pairing tab
+still works fully on its client-side layer — the API returns 404 for the route, the
+page shows "the narrated take isn't available right now", and the structured picks
+stand. Pairing narration reuses the Haiku inference profile already granted in step 2,
+so there is nothing new to enable in Bedrock.
+
 ## Inviting a user (you + a few friends)
 
 No public sign-up. Create accounts by hand, substituting the deployed pool id:

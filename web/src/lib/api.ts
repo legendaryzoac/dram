@@ -21,6 +21,8 @@ import type {
   BottleDetail,
   NewBottleInput,
   NewNoteInput,
+  PairingNarration,
+  PairingRequest,
   RecommendationResult,
   TastingNote,
 } from './types'
@@ -49,6 +51,15 @@ export interface DramApi {
     token: string,
   ): Promise<TastingNote>
   getRecommendations(bottleId: string): Promise<RecommendationResult>
+  /**
+   * The narrated take on a pairing (layer 2) — the only call in the app that
+   * reaches Haiku, and only ever made when the drinker submits a pairing.
+   * Auth-gated: it is a model call with free-text input.
+   */
+  pairingNarration(
+    input: PairingRequest,
+    token: string,
+  ): Promise<PairingNarration>
   health(): Promise<{ ok: true }>
 }
 
@@ -142,6 +153,14 @@ export function makeRealApi(baseUrl = API_BASE_URL): DramApi {
       return parse<RecommendationResult>(
         await fetch(url(`/bottles/${bottleId}/recommendations`)),
       )
+    },
+    async pairingNarration(input, token) {
+      const res = await fetch(url('/pairings'), {
+        method: 'POST',
+        headers: authHeaders(token, true),
+        body: JSON.stringify(input),
+      })
+      return parse<PairingNarration>(res)
     },
     async health() {
       return parse<{ ok: true }>(await fetch(url('/health')))

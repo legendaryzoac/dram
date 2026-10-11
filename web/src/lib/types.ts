@@ -4,23 +4,76 @@
  * contract change on both sides.
  */
 
-/** Beverage categories the app knows about. Free-form on the wire, but
- *  these are the values the seed data + the add-form dropdown use. */
-export type BottleType =
-  | 'scotch'
-  | 'bourbon'
-  | 'rye'
-  | 'irish'
-  | 'tequila'
-  | 'mezcal'
-  | 'rum'
-  | 'gin'
-  | 'absinthe'
-  | 'brandy'
-  | 'cognac'
-  | 'red wine'
-  | 'white wine'
-  | 'coffee'
+/**
+ * Beverage categories, grouped the way the add-form dropdown shows them.
+ * Free-form on the wire (the API accepts any short string), but these are the
+ * values the seed data and the form use, and the pairing engine keys its type
+ * affinities by them. `other` is the escape hatch for anything not listed
+ * (sake, cider, baijiu, a weird liqueur…) — the style field describes it.
+ *
+ * Whisky is split the way a shelf is: the four big origins plus the American
+ * sub-categories that taste nothing alike (a Tennessee whiskey and a rye are
+ * both "American"), and `world whisky` for Taiwan / India / Australia / Wales.
+ */
+export const TYPE_GROUPS = [
+  {
+    id: 'whisky',
+    label: 'Whisky',
+    types: [
+      'scotch',
+      'irish',
+      'bourbon',
+      'rye',
+      'tennessee whiskey',
+      'american whiskey',
+      'japanese whisky',
+      'canadian whisky',
+      'world whisky',
+    ],
+  },
+  { id: 'agave', label: 'Agave', types: ['tequila', 'mezcal'] },
+  { id: 'cane', label: 'Cane', types: ['rum', 'cachaça'] },
+  {
+    id: 'brandy',
+    label: 'Brandy',
+    types: ['cognac', 'armagnac', 'calvados', 'pisco', 'brandy'],
+  },
+  { id: 'botanical', label: 'Botanical & grain', types: ['gin', 'vodka', 'absinthe'] },
+  { id: 'liqueur', label: 'Liqueur & aperitif', types: ['liqueur', 'amaro', 'vermouth'] },
+  {
+    id: 'wine',
+    label: 'Wine',
+    types: [
+      'red wine',
+      'white wine',
+      'rosé wine',
+      'sparkling wine',
+      'fortified wine',
+      'dessert wine',
+    ],
+  },
+  { id: 'coffee', label: 'Coffee', types: ['coffee'] },
+  { id: 'other', label: 'Other', types: ['other'] },
+] as const satisfies readonly {
+  id: string
+  label: string
+  types: readonly string[]
+}[]
+
+export type BottleType = (typeof TYPE_GROUPS)[number]['types'][number]
+export type TypeGroupId = (typeof TYPE_GROUPS)[number]['id']
+
+/** Every canonical type, flat, in dropdown order. */
+export const BOTTLE_TYPES: readonly BottleType[] = TYPE_GROUPS.flatMap(
+  (g) => g.types,
+)
+
+/** The group a type belongs to (`whisky`, `wine`…); undefined for free-form
+ *  values stored outside the canon. */
+export function typeGroupOf(type: string): TypeGroupId | undefined {
+  return TYPE_GROUPS.find((g) => (g.types as readonly string[]).includes(type))
+    ?.id
+}
 
 /**
  * Beverage families. Coffee lives beside the alcohol cabinet in the same
@@ -34,8 +87,9 @@ export function familyOf(type: string): BeverageFamily {
 }
 
 export const isCoffee = (t: string) => familyOf(t) === 'coffee'
-export const isWine = (t: string) => t === 'red wine' || t === 'white wine'
-/** Any alcohol that isn't wine — whisky, agave, cane, botanical, brandy… */
+export const isWine = (t: string) => typeGroupOf(t) === 'wine'
+/** Any alcohol that isn't wine — whisky, agave, cane, brandy, botanical, and
+ *  `other`, whose style field doubles as its description. */
 export const isSpirit = (t: string) => familyOf(t) === 'alcohol' && !isWine(t)
 
 /**
@@ -133,6 +187,41 @@ export interface RecommendationResult {
   recommendations: Recommendation[]
   /** Picks from the other family (coffee <-> the cabinet), ranked desc, <= 3. */
   crossFamily: Recommendation[]
+  narration: string | null
+  degraded: boolean
+}
+
+/** Cigar strength, as the pairing form collects it. */
+export type CigarStrength = 'mild' | 'medium' | 'full'
+
+/**
+ * Request body for POST /pairings — what the drinker is having. The structured
+ * pairing (layer 1, `lib/pairing.ts`) runs client-side; this asks the API for
+ * the narrated take over the real cabinet. `candidateIds` is the client's
+ * flavor-math shortlist so the narration can agree with it or push back.
+ */
+export type PairingRequest =
+  | {
+      kind: 'food'
+      /** The dish, as typed. */
+      text: string
+      /** How the client's knowledge base read it (an occasion label), if it did. */
+      reading?: string
+      candidateIds?: string[]
+    }
+  | {
+      kind: 'cigar'
+      brand?: string
+      line?: string
+      strength: CigarStrength
+      wrapper?: string
+      candidateIds?: string[]
+    }
+
+/** Response shape for POST /pairings. `narration` is null (and `degraded`
+ *  true) when the narration layer was unavailable — the client's structured
+ *  picks still stand. */
+export interface PairingNarration {
   narration: string | null
   degraded: boolean
 }

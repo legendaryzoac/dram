@@ -349,8 +349,9 @@ export async function recommend(
   }
 }
 
-/** The user's most enthusiastic notes, as short strings for narration context. */
-function topHighlights(corpus: CorpusBottle[]): string[] {
+/** The user's most enthusiastic notes, as short strings for narration context
+ *  (shared with the pairing narration). */
+export function topHighlights(corpus: CorpusBottle[]): string[] {
   const all = corpus.flatMap((b) =>
     b.notes.map((n) => ({
       rating: n.rating,

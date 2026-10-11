@@ -1,14 +1,37 @@
-# dram — whisky / wine / coffee tasting log + recommender
+# dram — whisky / wine / coffee tasting log, recommender + pairing
 
 A personal tasting log with a layered recommender, live at **dram.zackwithers.com**
 *(once deployed)*. Log bottles and tasting notes from your phone; get ranked "bottles
-like this" recommendations that get smarter as you add notes.
+like this" recommendations that get smarter as you add notes; and ask what to drink
+with the steak, or with the cigar you're about to light.
 
-The cabinet covers whisky (scotch / bourbon / rye / Irish), agave (tequila / mezcal),
-rum, gin, absinthe, brandy / cognac, and wine; a sibling **coffee tab** (`#/coffee`)
-shares the same corpus, eight tasting axes, and recommender. Recommendations rank
-within the target's family and also surface **"across the aisle"** picks — which
-coffees echo a wine's profile, and vice versa.
+The cabinet's type list is grouped the way a shelf is — whisky (scotch / Irish /
+bourbon / rye / Tennessee / American / Japanese / Canadian / world), agave (tequila /
+mezcal), cane (rum / cachaça), brandy (cognac / armagnac / calvados / pisco / brandy),
+botanical & grain (gin / vodka / absinthe), liqueur & aperitif (liqueur / amaro /
+vermouth), wine (red / white / rosé / sparkling / fortified / dessert), plus `other`
+for anything else, described by its style field. Types are free-form on the wire; the
+list lives in one table (`web/src/lib/types.ts` → `TYPE_GROUPS`) that drives the form
+and the pairing engine. A sibling **coffee tab** (`#/coffee`) shares the same corpus,
+eight tasting axes, and recommender. Recommendations rank within the target's family
+and also surface **"across the aisle"** picks — which coffees echo a wine's profile,
+and vice versa.
+
+## Pairing (`#/pair`)
+
+Its own section beside the cabinet and the coffee bar. Say what you're having — a dish
+("ribeye", "oysters", "spicy green curry") or a cigar (brand and line optional; strength
+and wrapper inferred from a table of ~80 marques, or set by hand) — and dram answers
+two questions: **what to order** off a menu, and **what to pour** from your cabinet.
+
+1. **Structured, instant, offline** (`web/src/lib/pairing.ts`) — the occasion resolves
+   to a target profile on the eight shared axes plus per-type affinities; the cabinet
+   is ranked by flavor similarity (45%), type affinity (40%), and your own ratings
+   (15%). Menu tips are anchored to bottles you love ("you rated Caymus 8/10").
+2. **Narrated** (`POST /pairings` → Claude Haiku) — reasons over the occasion and your
+   *whole* cabinet, so it can confirm the shortlist or reach for a bottle the math
+   missed. It runs **only when you submit a pairing** (never on load or while typing),
+   needs a signed-in session, and fails soft to layer 1.
 
 Sibling to [interp](https://interp.zackwithers.com) and the
 [adversarial playground](https://playground.zackwithers.com) — same S3 + CloudFront +
@@ -24,6 +47,7 @@ serverless backend.
 | Storage | DynamoDB single-table (bottles + tasting notes) |
 | Embeddings | Bedrock Titan Text Embeddings v2 (on note write) |
 | Recommender | (1) structured cosine · (2) note-text embedding cosine · (3) Claude Haiku narration |
+| Pairing | client-side knowledge base + cosine ranking · Claude Haiku narration on request (`POST /pairings`, authed) |
 | Infra | CDK (S3 + CloudFront + Cognito + DynamoDB + Lambda + API GW), cloned from `fit` |
 
 ## Recommender layers (ship in order)

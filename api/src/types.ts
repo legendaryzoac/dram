@@ -131,6 +131,40 @@ export interface RecommendationResult {
   degraded: boolean
 }
 
+/** Cigar strength, as the pairing form collects it. */
+export type CigarStrength = 'mild' | 'medium' | 'full'
+
+/**
+ * Request body for POST /pairings — what the drinker is having. The
+ * structured pairing runs in the web client; this endpoint only narrates
+ * (Haiku) over the real cabinet. `candidateIds` is the client's flavor-math
+ * shortlist so the narration can agree with it or push back.
+ */
+export type PairingRequest =
+  | {
+      kind: 'food'
+      /** The dish, as typed. */
+      text: string
+      /** How the client's knowledge base read it (an occasion label), if it did. */
+      reading?: string
+      candidateIds?: string[]
+    }
+  | {
+      kind: 'cigar'
+      brand?: string
+      line?: string
+      strength: CigarStrength
+      wrapper?: string
+      candidateIds?: string[]
+    }
+
+/** Response shape for POST /pairings. `narration` is null (and `degraded`
+ *  true) when the narration layer was unavailable. */
+export interface PairingNarration {
+  narration: string | null
+  degraded: boolean
+}
+
 // ---- internal storage shapes (not part of the wire contract) ----
 
 /** DynamoDB item for a bottle: PK=BOTTLE#<id>, SK=META. */

@@ -11,6 +11,7 @@ import {
 } from './bottles'
 import { json, noContent } from './http'
 import { handleCreateNote, handleUpdateNote } from './notes'
+import { handlePairing } from './pairings'
 import { handleRecommendations } from './recommendations'
 
 // The HTTP API's JWT authorizer (Cognito) gates every write route, so a request
@@ -74,6 +75,12 @@ export async function handler(
     if (routeKey === 'PUT /bottles/{id}/notes/{noteId}' && id && noteId) {
       if (!sub) return json(401, { error: 'unauthorized' }, origin)
       return await handleUpdateNote(id, noteId, event, sub, origin)
+    }
+    // Pairing narration is a model call with free-text input, so it sits
+    // behind auth even though it writes nothing.
+    if (routeKey === 'POST /pairings') {
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
+      return await handlePairing(event, origin)
     }
 
     return json(404, { error: 'not found' }, origin)

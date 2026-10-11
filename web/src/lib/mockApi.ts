@@ -1,10 +1,11 @@
 /**
  * In-memory mock backend implementing the FULL frozen contract. Seeded with a
- * cabinet of realistic bottles (scotch / bourbon / rye / Irish / agave / rum /
- * gin / absinthe / cognac / wine) plus a shelf of coffees, each with 1–3
- * tasting notes, a flavor profile, and ratings. POSTs mutate the store, so
- * adding a bottle or note is visible immediately and recommendations recompute
- * live off the current data.
+ * cabinet of realistic bottles (scotch / bourbon / rye / Irish / Japanese and
+ * American whisky / agave / rum / gin / absinthe / cognac / wine) plus a shelf
+ * of coffees, each with 1–3 tasting notes, a flavor profile, and ratings.
+ * POSTs mutate the store, so adding a bottle or note is visible immediately
+ * and recommendations recompute live off the current data. Pairing narration
+ * is canned prose over the client's shortlist.
  *
  * Recommendation results are derived: mostly `basis:"structured"` from the
  * shared similarity math, with a couple carrying `narration` (to demo the
@@ -16,6 +17,8 @@ import type {
   Bottle,
   BottleDetail,
   FlavorTags,
+  PairingNarration,
+  PairingRequest,
   Recommendation,
   RecommendationBasis,
   RecommendationResult,
@@ -60,7 +63,7 @@ interface Seed {
   notes: Array<Omit<TastingNote, 'id' | 'bottleId' | 'createdAt'>>
 }
 
-/** Twenty-one pours that tell a coherent tasting story across the families. */
+/** Twenty-three pours that tell a coherent tasting story across the families. */
 const SEEDS: Seed[] = [
   {
     bottle: {
@@ -297,6 +300,50 @@ const SEEDS: Seed[] = [
         finish: 'Long, oily, and satisfying.',
         rating: 9,
         flavorTags: flavor({ sweet: 4, fruity: 4, oaky: 3, spicy: 3, floral: 1, acidity: 1, body: 4 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'b-hibiki-harmony',
+      name: 'Hibiki Japanese Harmony',
+      producer: 'Suntory',
+      region: 'Japan',
+      type: 'japanese whisky',
+      style: 'blended',
+      abv: 43,
+      price: 90,
+      createdAtDaysAgo: 24,
+    },
+    notes: [
+      {
+        nose: 'Honey, orange blossom, and a thread of sandalwood.',
+        palate: 'Silky and gentle — candied orange, white chocolate, soft mizunara spice.',
+        finish: 'Clean, floral, quietly long.',
+        rating: 8,
+        flavorTags: flavor({ sweet: 4, fruity: 3, floral: 4, oaky: 2, spicy: 2, acidity: 2, body: 2 }),
+      },
+    ],
+  },
+  {
+    bottle: {
+      id: 'b-westland-american-oak',
+      name: 'Westland American Oak',
+      producer: 'Westland Distillery',
+      region: 'Washington',
+      type: 'american whiskey',
+      style: 'single malt',
+      abv: 46,
+      price: 60,
+      createdAtDaysAgo: 20,
+    },
+    notes: [
+      {
+        nose: 'Malted milk chocolate, cherry, and fresh-sawn oak.',
+        palate: 'Rich and malty — cocoa nibs, dried cherry, a little barley sugar.',
+        finish: 'Medium, soft, chocolatey.',
+        rating: 8,
+        flavorTags: flavor({ sweet: 4, fruity: 3, floral: 1, oaky: 4, spicy: 2, acidity: 1, body: 4 }),
       },
     ],
   },
@@ -666,6 +713,41 @@ function narrationFor(bottle: Bottle, recs: Recommendation[]): string | null {
   ).trim()
 }
 
+/**
+ * Canned pairing narration: the live layer asks Haiku to reason over the
+ * occasion and the whole cabinet; the mock just talks through the client's
+ * shortlist so the panel (bold names, bottle links) can be exercised offline.
+ */
+function pairingNarrationFor(
+  input: PairingRequest,
+  shortlist: Bottle[],
+): PairingNarration {
+  const what =
+    input.kind === 'food'
+      ? `the ${input.text.trim() || 'dish'}`
+      : [input.brand, input.line].filter(Boolean).join(' ') ||
+        `a ${input.strength} cigar`
+  const [top, second] = shortlist
+  if (!top) {
+    return {
+      narration:
+        `With ${what}, nothing in the cabinet jumps out — order something with ` +
+        `a bit of weight and sweetness and log it afterwards so I can learn from it.`,
+      degraded: false,
+    }
+  }
+  const second_ = second
+    ? ` If you'd rather stretch, **${second.name}** keeps the through-line while shifting the emphasis.`
+    : ''
+  const rated = top.avgRating != null ? `, and you already rate it ${top.avgRating}/10` : ''
+  return {
+    narration:
+      `With ${what}, I'd pour **${top.name}** first — the ${top.type} on your ` +
+      `shelf closest to what the moment asks for${rated}.${second_}`,
+    degraded: false,
+  }
+}
+
 function toRecommendation(r: ScoredBottle): Recommendation {
   return {
     bottleId: r.bottle.id,
@@ -853,6 +935,15 @@ export function makeMockApi(): DramApi {
         narration,
         degraded,
       } satisfies RecommendationResult
+    },
+
+    async pairingNarration(input, token) {
+      await wait()
+      requireToken(token)
+      const shortlist = (input.candidateIds ?? [])
+        .map((id) => store.bottles.get(id))
+        .filter((b): b is Bottle => b !== undefined)
+      return pairingNarrationFor(input, shortlist)
     },
 
     async health() {

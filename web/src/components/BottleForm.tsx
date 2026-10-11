@@ -1,19 +1,17 @@
 /**
  * Add / edit a bottle or coffee (auth-gated, routes `#/add`, `#/add/coffee`,
  * and `#/bottles/:id/edit`). Name / producer / region / type / ABV / price,
- * plus per-category fields: grape (wine), style (spirits), roast + process
- * (coffee). On add it posts a new bottle; on edit it PUTs a partial update.
- * Redirects to the bottle's detail page.
+ * plus per-category fields: grape (wine), style (spirits — and the free-text
+ * description for `other`), roast + process (coffee). The type dropdown is
+ * driven by TYPE_GROUPS in lib/types. On add it posts a new bottle; on edit
+ * it PUTs a partial update. Redirects to the bottle's detail page.
  */
 import { useEffect, useState } from 'react'
-import type {
-  BeverageFamily,
-  Bottle,
-  BottleType,
-  NewBottleInput,
-} from '../lib/types'
+import type { BeverageFamily, Bottle, NewBottleInput } from '../lib/types'
 import {
+  BOTTLE_TYPES,
   ROAST_LEVELS,
+  TYPE_GROUPS,
   familyOf,
   isCoffee,
   isSpirit,
@@ -32,14 +30,6 @@ import {
   ErrorNote,
   Spinner,
 } from './ui'
-
-const TYPE_GROUPS: Array<{ label: string; types: BottleType[] }> = [
-  { label: 'Whisky', types: ['scotch', 'bourbon', 'rye', 'irish'] },
-  { label: 'Agave', types: ['tequila', 'mezcal'] },
-  { label: 'Other spirits', types: ['rum', 'gin', 'absinthe', 'brandy', 'cognac'] },
-  { label: 'Wine', types: ['red wine', 'white wine'] },
-  { label: 'Coffee', types: ['coffee'] },
-]
 
 interface Props {
   /** Present when editing; absent when adding. */
@@ -210,7 +200,7 @@ export default function BottleForm({ editId, initialFamily }: Props) {
                 }}
               >
                 {TYPE_GROUPS.map((g) => (
-                  <optgroup key={g.label} label={g.label}>
+                  <optgroup key={g.id} label={g.label}>
                     {g.types.map((t) => (
                       <option key={t} value={t}>
                         {t}
@@ -218,6 +208,13 @@ export default function BottleForm({ editId, initialFamily }: Props) {
                     ))}
                   </optgroup>
                 ))}
+                {/* A stored type outside the canon (an older or API-written
+                    entry) stays selectable rather than silently vanishing. */}
+                {!(BOTTLE_TYPES as readonly string[]).includes(type) && (
+                  <optgroup label="As stored">
+                    <option value={type}>{type}</option>
+                  </optgroup>
+                )}
               </select>
             </Field>
           </div>
@@ -232,12 +229,16 @@ export default function BottleForm({ editId, initialFamily }: Props) {
             </Field>
           )}
           {isSpirit(type) && (
-            <Field label="Style (optional)">
+            <Field label={type === 'other' ? 'What is it?' : 'Style (optional)'}>
               <input
                 className={inputClass}
                 value={style}
                 onChange={(e) => setStyle(e.target.value)}
-                placeholder="reposado · single barrel · london dry"
+                placeholder={
+                  type === 'other'
+                    ? 'sake · cider · baijiu · aquavit'
+                    : 'single malt · cask strength · reposado · london dry'
+                }
               />
             </Field>
           )}

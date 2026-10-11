@@ -3,11 +3,15 @@
  * accent/muted). Reused across every screen so buttons, inputs, and cards
  * stay consistent with interp / the adversarial playground.
  */
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 
-export const inputClass =
-  'w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm ' +
+/** Field chrome without a width — compose with `w-full` (inputClass) or
+ *  leave it content-sized for inline selects. */
+export const fieldClass =
+  'rounded-lg border border-line bg-panel px-3 py-2 text-sm ' +
   'text-fg placeholder-muted outline-none transition-colors focus:border-accent'
+
+export const inputClass = `w-full ${fieldClass}`
 
 export const labelClass =
   'font-mono text-[0.7rem] uppercase tracking-wider text-muted'
@@ -71,6 +75,51 @@ export function Tag({
     >
       {children}
     </span>
+  )
+}
+
+/**
+ * Joined segmented control — the same shape as the nav's section switcher,
+ * as a radio group of buttons for forms (food | cigar, mild | medium | full).
+ * Each segment is a ≥44px tap target.
+ */
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: T
+  onChange: (next: T) => void
+  options: ReadonlyArray<{ value: T; label: string }>
+  /** Accessible name for the group. */
+  label: string
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="border-line bg-panel flex w-fit max-w-full items-stretch overflow-hidden rounded-full border"
+    >
+      {options.map((o, i) => (
+        <Fragment key={o.value}>
+          {i > 0 && <span className="bg-line w-px shrink-0" aria-hidden />}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={o.value === value}
+            onClick={() => onChange(o.value)}
+            className={`min-h-[44px] px-4 font-mono text-xs whitespace-nowrap transition-colors ${
+              o.value === value
+                ? 'bg-accent/15 text-accent'
+                : 'text-muted hover:text-accent'
+            }`}
+          >
+            {o.label}
+          </button>
+        </Fragment>
+      ))}
+    </div>
   )
 }
 
