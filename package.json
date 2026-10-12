@@ -2,13 +2,18 @@
   "name": "dram",
   "private": true,
   "version": "0.0.0",
-  "workspaces": ["web", "api", "infra"],
+  "workspaces": [
+    "web",
+    "api",
+    "infra"
+  ],
   "scripts": {
     "dev": "npm run dev -w web",
     "build": "npm run build -w web",
     "lint": "npm run lint -w web",
     "test": "npm run test -w api",
     "synth": "npm run synth -w infra",
-    "deploy": "npm run deploy -w infra"
+    "deploy": "npm run deploy -w infra",
+    "import:bottles": "tsx scripts/import-bottles.ts"
   }
 }

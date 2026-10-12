@@ -1,0 +1,717 @@
+[
+  {
+    "name": "291 Barrel Proof Single Barrel Aspen Wood Staves",
+    "producer": "Distillery 291",
+    "region": "Colorado",
+    "type": "american whiskey",
+    "abv": 63.0,
+    "style": "single barrel, barrel proof, aspen stave finish",
+    "verify": "ABV varies by barrel — set it from your label"
+  },
+  {
+    "name": "291 Special Limited Release 4 Barrel Proof",
+    "producer": "Distillery 291",
+    "region": "Colorado",
+    "type": "american whiskey",
+    "abv": 63.0,
+    "style": "limited release, barrel proof",
+    "verify": "Could not pin down this release; abv varies by barrel — set it from your label"
+  },
+  {
+    "name": "A-O Oregon Single Malt Ocean Aged",
+    "producer": "A-O",
+    "region": "Oregon",
+    "type": "american whiskey",
+    "abv": 45.0,
+    "style": "single malt, ocean aged",
+    "verify": "Not identified — producer and ABV are placeholders"
+  },
+  {
+    "name": "Breckenridge Peat Fetish",
+    "producer": "Breckenridge Distillery",
+    "region": "Colorado",
+    "type": "american whiskey",
+    "abv": 45.0,
+    "style": "peated cask finish",
+    "verify": "Details unconfirmed — check style and ABV on the label"
+  },
+  {
+    "name": "Jack Daniel's Single Barrel Barrel Proof",
+    "producer": "Jack Daniel Distillery",
+    "region": "Tennessee",
+    "type": "tennessee whiskey",
+    "abv": 64.5,
+    "style": "single barrel, barrel proof",
+    "verify": "ABV varies by barrel — set it from your label"
+  },
+  {
+    "name": "Jack Daniel's Single Barrel Select",
+    "producer": "Jack Daniel Distillery",
+    "region": "Tennessee",
+    "type": "tennessee whiskey",
+    "abv": 47.0,
+    "style": "single barrel"
+  },
+  {
+    "name": "Laws Centennial Wheat Whiskey Bottled in Bond",
+    "producer": "Laws Whiskey House",
+    "region": "Colorado",
+    "type": "american whiskey",
+    "abv": 50.0,
+    "style": "straight wheat whiskey, bottled in bond"
+  },
+  {
+    "name": "Laws Corn Whiskey",
+    "producer": "Laws Whiskey House",
+    "region": "Colorado",
+    "type": "american whiskey",
+    "abv": 50.0,
+    "style": "straight corn whiskey",
+    "verify": "Exact expression and ABV unconfirmed — check the label"
+  },
+  {
+    "name": "Michter's US*1 American Whiskey",
+    "producer": "Michter's Distillery",
+    "region": "Kentucky",
+    "type": "american whiskey",
+    "abv": 41.7,
+    "style": "US*1 unblended American whiskey"
+  },
+  {
+    "name": "Traveller Whiskey Blend No. 40",
+    "producer": "Buffalo Trace Distillery",
+    "region": "Kentucky",
+    "type": "american whiskey",
+    "abv": 45.0,
+    "style": "blended whiskey"
+  },
+  {
+    "name": "Angel's Envy Caribbean Rum Cask Finished Rye",
+    "producer": "Angel's Envy",
+    "region": "Kentucky",
+    "type": "rye",
+    "abv": 50.0,
+    "style": "rum cask finish"
+  },
+  {
+    "name": "Jefferson's Rye Cognac Cask Finish",
+    "producer": "Jefferson's",
+    "region": "Kentucky",
+    "type": "rye",
+    "abv": 47.0,
+    "style": "cognac cask finish"
+  },
+  {
+    "name": "Rod & Hammer's Single Barrel Cask Strength Rye",
+    "producer": "Rod & Hammer's SLO Stills",
+    "region": "California",
+    "type": "rye",
+    "abv": 59.0,
+    "style": "single barrel, cask strength",
+    "verify": "ABV varies by barrel — set it from your label"
+  },
+  {
+    "name": "Rossville Union Barrel Proof Rye",
+    "producer": "Ross & Squibb Distillery",
+    "region": "Indiana",
+    "type": "rye",
+    "abv": 56.3,
+    "style": "straight rye, barrel proof",
+    "verify": "ABV varies by batch — set it from your label"
+  },
+  {
+    "name": "The Family Jones Rock & Rye",
+    "producer": "The Family Jones",
+    "region": "Colorado",
+    "type": "rye",
+    "abv": 40.0,
+    "style": "rock & rye (sweetened)",
+    "verify": "ABV unconfirmed — check the label"
+  },
+  {
+    "name": "1792 Full Proof",
+    "producer": "Barton 1792 Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 62.5,
+    "style": "full proof"
+  },
+  {
+    "name": "Angel's Envy Port Wine Barrel Finished Bourbon",
+    "producer": "Angel's Envy",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 43.3,
+    "style": "port barrel finish"
+  },
+  {
+    "name": "Berkshire Maple Bourbon Whiskey",
+    "producer": "Berkshire Mountain Distillers",
+    "region": "Massachusetts",
+    "type": "bourbon",
+    "abv": 43.0,
+    "style": "maple barrel finish",
+    "verify": "ABV unconfirmed — check the label"
+  },
+  {
+    "name": "Bird Dog 7 Year Small Batch",
+    "producer": "Bird Dog Whiskey",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 43.0,
+    "style": "7 year, small batch",
+    "verify": "ABV unconfirmed (86 proof?) — check the label"
+  },
+  {
+    "name": "Bondstone Cask Strength",
+    "producer": "Bondstone",
+    "region": "Unknown",
+    "type": "bourbon",
+    "abv": 60.0,
+    "style": "cask strength",
+    "verify": "Not identified — producer, region and ABV are placeholders"
+  },
+  {
+    "name": "Branch & Barrel Fusserek Hungarian Oak Kissed Bourbon",
+    "producer": "Branch & Barrel",
+    "region": "Unknown",
+    "type": "bourbon",
+    "abv": 45.0,
+    "style": "Hungarian oak finish",
+    "verify": "Not identified — producer, region and ABV are placeholders"
+  },
+  {
+    "name": "Breckenridge Powder Hound",
+    "producer": "Breckenridge Distillery",
+    "region": "Colorado",
+    "type": "bourbon",
+    "abv": 45.0,
+    "verify": "Details unconfirmed — check style and ABV on the label"
+  },
+  {
+    "name": "Breckenridge PX Sherry Cask Finished Bourbon",
+    "producer": "Breckenridge Distillery",
+    "region": "Colorado",
+    "type": "bourbon",
+    "abv": 45.0,
+    "style": "PX sherry cask finish"
+  },
+  {
+    "name": "Buffalo Trace",
+    "producer": "Buffalo Trace Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 45.0
+  },
+  {
+    "name": "Eagle Rare 10",
+    "producer": "Buffalo Trace Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 45.0,
+    "style": "10 year"
+  },
+  {
+    "name": "Elijah Craig Barrel Proof",
+    "producer": "Heaven Hill",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 62.0,
+    "style": "12 year, barrel proof",
+    "verify": "ABV varies by batch — set it from your label (batch code on the back)"
+  },
+  {
+    "name": "Elijah Craig Small Batch",
+    "producer": "Heaven Hill",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 47.0,
+    "style": "small batch"
+  },
+  {
+    "name": "Four Roses Single Barrel",
+    "producer": "Four Roses Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 50.0,
+    "style": "single barrel"
+  },
+  {
+    "name": "George T. Stagg",
+    "producer": "Buffalo Trace Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 67.5,
+    "style": "Antique Collection, uncut and unfiltered",
+    "verify": "ABV varies by release year — set it from your bottle"
+  },
+  {
+    "name": "Heaven's Door Straight Bourbon",
+    "producer": "Heaven's Door Spirits",
+    "region": "Tennessee",
+    "type": "bourbon",
+    "abv": 45.0,
+    "verify": "ABV unconfirmed (90 proof?) — check the label"
+  },
+  {
+    "name": "Knob Creek 12",
+    "producer": "James B. Beam Distilling Co.",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 50.0,
+    "style": "12 year"
+  },
+  {
+    "name": "Larceny Small Batch",
+    "producer": "Heaven Hill",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 46.0,
+    "style": "wheated, small batch",
+    "count": 2
+  },
+  {
+    "name": "Laws Four Grain Bourbon Cask Strength",
+    "producer": "Laws Whiskey House",
+    "region": "Colorado",
+    "type": "bourbon",
+    "abv": 57.5,
+    "style": "four grain straight bourbon, cask strength",
+    "verify": "ABV varies by batch — set it from your label"
+  },
+  {
+    "name": "Maker's Mark",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 45.0,
+    "style": "wheated"
+  },
+  {
+    "name": "Maker's Mark 101",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 50.5,
+    "style": "wheated, 101 proof"
+  },
+  {
+    "name": "Maker's Mark 46",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 47.0,
+    "style": "wheated, French oak stave finish",
+    "count": 3
+  },
+  {
+    "name": "Maker's Mark Cask Strength",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 55.0,
+    "style": "wheated, cask strength",
+    "verify": "ABV varies by batch — set it from your label"
+  },
+  {
+    "name": "Maker's Mark Private Selection (unmarked)",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 55.0,
+    "style": "Private Selection, barrel strength",
+    "verify": "ABV varies by barrel — set it from your label"
+  },
+  {
+    "name": "Maker's Mark Private Selection T8KE",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 55.0,
+    "style": "Private Selection, r/bourbon T8KE pick",
+    "verify": "ABV varies by barrel — set it from your label"
+  },
+  {
+    "name": "Maker's Mark Private Selection Heritage Wine & Liquor",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 55.0,
+    "style": "Private Selection, Heritage Wine & Liquor pick",
+    "verify": "ABV varies by barrel — set it from your label"
+  },
+  {
+    "name": "Maker's Mark Wood Finishing Series BEP 2023",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 55.35,
+    "style": "Wood Finishing Series 2023, BEP"
+  },
+  {
+    "name": "Maker's Mark Wood Finishing Series BRT-02 2022",
+    "producer": "Maker's Mark Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 57.85,
+    "style": "Wood Finishing Series 2022, BRT-02",
+    "verify": "ABV from memory (115.7 proof) — confirm on the label"
+  },
+  {
+    "name": "Mashbuild Batch 32",
+    "producer": "Mashbuild",
+    "region": "Colorado",
+    "type": "bourbon",
+    "abv": 50.0,
+    "style": "batch 32",
+    "verify": "Not confidently identified — region and ABV are placeholders"
+  },
+  {
+    "name": "Michter's US*1 Small Batch Bourbon",
+    "producer": "Michter's Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 45.7,
+    "style": "US*1 small batch",
+    "count": 2
+  },
+  {
+    "name": "Old Forester 1897",
+    "producer": "Brown-Forman",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 50.0,
+    "style": "bottled in bond"
+  },
+  {
+    "name": "Old Forester 1910",
+    "producer": "Brown-Forman",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 46.5,
+    "style": "Old Fine Whisky, double barreled"
+  },
+  {
+    "name": "Old Forester 1920",
+    "producer": "Brown-Forman",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 57.5,
+    "style": "Prohibition Style"
+  },
+  {
+    "name": "Russell's Reserve 10",
+    "producer": "Wild Turkey Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 45.0,
+    "style": "10 year, small batch"
+  },
+  {
+    "name": "Russell's Reserve Single Barrel",
+    "producer": "Wild Turkey Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 55.0,
+    "style": "single barrel, non-chill filtered"
+  },
+  {
+    "name": "Still Austin Cask Strength Bourbon",
+    "producer": "Still Austin Whiskey Co.",
+    "region": "Texas",
+    "type": "bourbon",
+    "abv": 59.0,
+    "style": "The Musician, cask strength",
+    "verify": "ABV varies by batch — set it from your label"
+  },
+  {
+    "name": "The Family Jones Ella Jones",
+    "producer": "The Family Jones",
+    "region": "Colorado",
+    "type": "bourbon",
+    "abv": 45.0,
+    "style": "Colorado straight bourbon",
+    "verify": "ABV unconfirmed — check the label"
+  },
+  {
+    "name": "Weller Antique 107",
+    "producer": "Buffalo Trace Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 53.5,
+    "style": "wheated, 107 proof"
+  },
+  {
+    "name": "Weller Full Proof",
+    "producer": "Buffalo Trace Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 57.0,
+    "style": "wheated, full proof"
+  },
+  {
+    "name": "Weller Special Reserve",
+    "producer": "Buffalo Trace Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 45.0,
+    "style": "wheated",
+    "count": 2
+  },
+  {
+    "name": "Wild Turkey 101",
+    "producer": "Wild Turkey Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 50.5,
+    "style": "101 proof"
+  },
+  {
+    "name": "Wild Turkey Rare Breed Barrel Proof",
+    "producer": "Wild Turkey Distillery",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 58.4,
+    "style": "barrel proof",
+    "verify": "Current batch is 116.8 proof; older batches differ — check the label"
+  },
+  {
+    "name": "Woodford Reserve Double Oaked",
+    "producer": "Brown-Forman",
+    "region": "Kentucky",
+    "type": "bourbon",
+    "abv": 45.2,
+    "style": "double oaked",
+    "count": 2
+  },
+  {
+    "name": "Blue Spot",
+    "producer": "Mitchell & Son / Midleton Distillery",
+    "region": "Ireland",
+    "type": "irish",
+    "abv": 58.7,
+    "style": "single pot still, 7 year, cask strength",
+    "verify": "ABV varies by batch — set it from your label"
+  },
+  {
+    "name": "Green Spot",
+    "producer": "Mitchell & Son / Midleton Distillery",
+    "region": "Ireland",
+    "type": "irish",
+    "abv": 40.0,
+    "style": "single pot still"
+  },
+  {
+    "name": "Jameson Irish Whiskey",
+    "producer": "Midleton Distillery",
+    "region": "Ireland",
+    "type": "irish",
+    "abv": 40.0,
+    "style": "blended"
+  },
+  {
+    "name": "Redbreast 12",
+    "producer": "Midleton Distillery",
+    "region": "Ireland",
+    "type": "irish",
+    "abv": 40.0,
+    "style": "single pot still, 12 year"
+  },
+  {
+    "name": "Redbreast 12 Cask Strength",
+    "producer": "Midleton Distillery",
+    "region": "Ireland",
+    "type": "irish",
+    "abv": 56.5,
+    "style": "single pot still, 12 year, cask strength",
+    "verify": "ABV varies by batch — set it from your label"
+  },
+  {
+    "name": "Redbreast Tawny Port Cask",
+    "producer": "Midleton Distillery",
+    "region": "Ireland",
+    "type": "irish",
+    "abv": 46.0,
+    "style": "single pot still, Iberian Series, tawny port cask"
+  },
+  {
+    "name": "Yellow Spot",
+    "producer": "Mitchell & Son / Midleton Distillery",
+    "region": "Ireland",
+    "type": "irish",
+    "abv": 46.0,
+    "style": "single pot still, 12 year"
+  },
+  {
+    "name": "Mars Iwai",
+    "producer": "Mars Shinshu Distillery (Hombo Shuzo)",
+    "region": "Japan",
+    "type": "japanese whisky",
+    "abv": 40.0,
+    "style": "blended"
+  },
+  {
+    "name": "Aberlour 12 Double Cask Matured",
+    "producer": "Aberlour",
+    "region": "Speyside",
+    "type": "scotch",
+    "abv": 40.0,
+    "style": "single malt, 12 year, double cask"
+  },
+  {
+    "name": "Ardbeg Anthology: The Harpy's Tale 13",
+    "producer": "Ardbeg",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 46.0,
+    "style": "single malt, 13 year, Sauternes cask finish"
+  },
+  {
+    "name": "Ardbeg Corryvreckan",
+    "producer": "Ardbeg",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 57.1,
+    "style": "single malt"
+  },
+  {
+    "name": "Ardbeg Heavy Vapours",
+    "producer": "Ardbeg",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 46.0,
+    "style": "single malt, Ardbeg Day 2023",
+    "verify": "General release is 46%; the Committee release is 50.2% — check yours"
+  },
+  {
+    "name": "Ardbeg Smokiverse",
+    "producer": "Ardbeg",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 46.0,
+    "style": "single malt, Ardbeg Day 2024",
+    "verify": "General release is 46%; the Committee release is stronger — check yours"
+  },
+  {
+    "name": "Ardbeg Uigeadail",
+    "producer": "Ardbeg",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 54.2,
+    "style": "single malt, sherry cask"
+  },
+  {
+    "name": "Glenfiddich 12",
+    "producer": "Glenfiddich",
+    "region": "Speyside",
+    "type": "scotch",
+    "abv": 40.0,
+    "style": "single malt, 12 year"
+  },
+  {
+    "name": "Glenfiddich Fire & Cane",
+    "producer": "Glenfiddich",
+    "region": "Speyside",
+    "type": "scotch",
+    "abv": 43.0,
+    "style": "single malt, peated, rum cask finish"
+  },
+  {
+    "name": "Glenmorangie A Tale of the Forest",
+    "producer": "Glenmorangie",
+    "region": "Highland",
+    "type": "scotch",
+    "abv": 46.0,
+    "style": "single malt, limited edition"
+  },
+  {
+    "name": "Glenmorangie A Tale of Winter",
+    "producer": "Glenmorangie",
+    "region": "Highland",
+    "type": "scotch",
+    "abv": 46.0,
+    "style": "single malt, 13 year, Marsala cask finish"
+  },
+  {
+    "name": "Lagavulin 11 Offerman Edition Caribbean Rum Cask",
+    "producer": "Lagavulin",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 46.0,
+    "style": "single malt, 11 year, rum cask finish"
+  },
+  {
+    "name": "Lagavulin 11 Offerman Edition Charred Oak Cask",
+    "producer": "Lagavulin",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 46.0,
+    "style": "single malt, 11 year, charred oak cask"
+  },
+  {
+    "name": "Lagavulin 12 Natural Cask Strength",
+    "producer": "Lagavulin",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 57.0,
+    "style": "single malt, 12 year, cask strength",
+    "verify": "ABV varies by release year — set it from your bottle"
+  },
+  {
+    "name": "Lagavulin 16",
+    "producer": "Lagavulin",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 43.0,
+    "style": "single malt, 16 year"
+  },
+  {
+    "name": "Lagavulin 8",
+    "producer": "Lagavulin",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 48.0,
+    "style": "single malt, 8 year"
+  },
+  {
+    "name": "Laphroaig 10",
+    "producer": "Laphroaig",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 43.0,
+    "style": "single malt, 10 year",
+    "verify": "US bottling is 43%; elsewhere 40% — check yours"
+  },
+  {
+    "name": "Laphroaig Quarter Cask",
+    "producer": "Laphroaig",
+    "region": "Islay",
+    "type": "scotch",
+    "abv": 48.0,
+    "style": "single malt, quarter cask"
+  },
+  {
+    "name": "Macallan 12 Triple Cask Matured",
+    "producer": "The Macallan",
+    "region": "Speyside",
+    "type": "scotch",
+    "abv": 40.0,
+    "style": "single malt, 12 year, triple cask"
+  },
+  {
+    "name": "Monkey Shoulder",
+    "producer": "William Grant & Sons",
+    "region": "Speyside",
+    "type": "scotch",
+    "abv": 40.0,
+    "style": "blended malt"
+  },
+  {
+    "name": "Oban Little Bay",
+    "producer": "Oban",
+    "region": "Highland",
+    "type": "scotch",
+    "abv": 43.0,
+    "style": "single malt, small cask"
+  }
+]
