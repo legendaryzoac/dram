@@ -12,7 +12,7 @@ import type {
 import { completeNewPassword, signIn, AUTH_CONFIGURED } from '../lib/auth'
 import { USE_MOCK } from '../lib/api'
 import { useAuth } from './AuthContext'
-import { buttonClass, ghostButtonClass, inputClass, ErrorNote } from './ui'
+import { buttonClass, ghostButtonClass, inputClass, Notice } from './ui'
 
 type Phase =
   | { phase: 'login' }
@@ -104,7 +104,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
               disabled={!AUTH_CONFIGURED}
               required
             />
-            {error && <ErrorNote>{error}</ErrorNote>}
+            {error && <Notice>{error}</Notice>}
             {!AUTH_CONFIGURED && (
               <p className="text-muted font-mono text-xs">
                 Cognito isn’t configured in this build — use the demo below.
@@ -159,7 +159,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
               minLength={12}
               required
             />
-            {error && <ErrorNote>{error}</ErrorNote>}
+            {error && <Notice>{error}</Notice>}
             <button className={`${buttonClass} w-full`} disabled={busy}>
               {busy ? 'Saving…' : 'Set password'}
             </button>

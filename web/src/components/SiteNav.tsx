@@ -2,8 +2,8 @@
  * Minimal app header. dram is used mostly as a phone app, so the top nav is
  * the brand ("zw ~ / dram") on the left and the section switcher on the
  * right: a joined segmented control (cabinet | coffee | pair) whose segments
- * are full-height ≥44px tap targets, plus an optional live-backend badge on
- * wider screens. The SiteFooter keeps the external links (GitHub / LinkedIn /
+ * are full-height ≥44px tap targets, plus an optional status line (mock vs
+ * live API) as plain mono text on wider screens. The SiteFooter keeps the external links (GitHub / LinkedIn /
  * Email).
  */
 import { href, type NavTab } from '../lib/router'
@@ -30,7 +30,7 @@ export default function SiteNav({
 
       <div className="flex items-center gap-3">
         {badge && (
-          <span className="border-line bg-panel text-muted hidden rounded-full border px-3 py-1 font-mono text-[0.7rem] tracking-wide whitespace-nowrap md:inline">
+          <span className="text-muted hidden font-mono text-[0.7rem] tracking-wide whitespace-nowrap md:inline">
             {badge}
           </span>
         )}

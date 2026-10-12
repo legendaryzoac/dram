@@ -1,7 +1,7 @@
 /**
  * Bottle detail (route `#/bottles/:id`) — serves both families. Lays out:
- *   - bottle meta (producer / region / type / ABV-or-roast / price) with a
- *     single-row rating + note-count + edit cluster,
+ *   - bottle meta (producer, then one line: type · region · style-or-roast ·
+ *     ABV · price) with a single-row rating + note-count + edit cluster,
  *   - the D3 radar of its averaged flavor profile,
  *   - the "like this" recommendations panel (with cross-family picks),
  *   - the tasting-notes list (coffee wears aroma / flavor / aftertaste, shows
@@ -19,14 +19,14 @@ import RadarChart from './RadarChart'
 import RecommendationsPanel from './RecommendationsPanel'
 import NoteForm, { type BrewSuggestions } from './NoteForm'
 import {
+  Meta,
+  Notice,
   Panel,
   RatingBadge,
   SectionTitle,
   Spinner,
-  Tag,
   buttonClass,
   ghostButtonClass,
-  ErrorNote,
 } from './ui'
 
 /** Select-or-type starters for the brew method field, merged with whatever
@@ -113,7 +113,7 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <BackLink />
-        <ErrorNote>Couldn’t load this bottle: {error}</ErrorNote>
+        <Notice>Couldn’t load this bottle: {error}</Notice>
       </div>
     )
   }
@@ -143,22 +143,19 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
             </p>
           )}
           <p className="text-muted mt-1">{bottle.producer}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Tag tone="accent">{bottle.type}</Tag>
-            <Tag>{bottle.region}</Tag>
-            {coffee ? (
-              <>
-                {bottle.roast && <Tag>{bottle.roast} roast</Tag>}
-                {bottle.process && <Tag>{bottle.process}</Tag>}
-              </>
-            ) : (
-              <>
-                {bottle.style && <Tag>{bottle.style}</Tag>}
-                <Tag>{bottle.abv}% ABV</Tag>
-              </>
-            )}
-            {bottle.price != null && <Tag tone="warm">${bottle.price}</Tag>}
-          </div>
+          {/* Everything about the bottle on one quiet line; the type leads
+              in accent, the rating beside it is the only oxblood. */}
+          <Meta
+            className="mt-3"
+            items={[
+              { text: bottle.type, tone: 'lead' },
+              bottle.region,
+              ...(coffee
+                ? [bottle.roast && `${bottle.roast} roast`, bottle.process]
+                : [bottle.style, `${bottle.abv}% ABV`]),
+              bottle.price != null && `$${bottle.price}`,
+            ]}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* RatingBadge already reads "no notes yet" when unrated, so the
@@ -231,7 +228,7 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
               {notes.map((note) => (
                 <li
                   key={note.id}
-                  className="border-line bg-panel-2/40 rounded-lg border p-4"
+                  className="border-line bg-panel-2/50 rounded-lg border p-4"
                 >
                   {editingNoteId === note.id ? (
                     <NoteForm

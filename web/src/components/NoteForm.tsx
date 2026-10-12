@@ -23,7 +23,7 @@ import {
   ghostButtonClass,
   inputClass,
   labelClass,
-  ErrorNote,
+  Notice,
 } from './ui'
 
 export interface BrewSuggestions {
@@ -252,7 +252,7 @@ export default function NoteForm({
         </div>
       </div>
 
-      {error && <ErrorNote>{error}</ErrorNote>}
+      {error && <Notice>{error}</Notice>}
 
       <div className="flex gap-3">
         <button className={buttonClass} disabled={busy}>

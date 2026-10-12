@@ -1,7 +1,9 @@
 /**
  * Shared UI primitives, styled with the family design tokens (panel/line/
  * accent/muted). Reused across every screen so buttons, inputs, and cards
- * stay consistent with interp / the adversarial playground.
+ * stay consistent with interp / the adversarial playground. The component
+ * language — one emphasis per element, metadata as a quiet mono line rather
+ * than pills, hairlines not shadows — is specified in the dram design system.
  */
 import { Fragment, type ReactNode } from 'react'
 
@@ -72,25 +74,104 @@ export function Field({
   )
 }
 
-/** Small rounded pill — used for type/region tags and rating chips. */
-export function Tag({
-  children,
-  tone = 'muted',
+/** One fact on a Meta line; `lead` paints it accent, `warm` oxblood. Falsy
+ *  entries are skipped so callers can pass optional fields inline. */
+export type MetaItem = string | { text: string; tone: 'lead' | 'warm' }
+
+/**
+ * One mono line of dot-separated facts in muted, with at most one item
+ * emphasised: `scotch · Islay · 43% ABV`. Replaces the rows of type / region
+ * / strength pills on cards, the detail header and the hub.
+ */
+export function Meta({
+  items,
+  className = '',
 }: {
-  children: ReactNode
-  tone?: 'muted' | 'accent' | 'warm'
+  items: ReadonlyArray<MetaItem | false | null | undefined | ''>
+  className?: string
 }) {
-  const tones: Record<string, string> = {
-    muted: 'border-line bg-panel-2 text-muted',
-    accent: 'border-accent/40 bg-accent/10 text-accent',
-    warm: 'border-warm/40 bg-warm/10 text-warm',
-  }
+  const shown = items.filter((i): i is MetaItem => Boolean(i))
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[0.7rem] tracking-wide ${tones[tone]}`}
+      className={`text-muted flex flex-wrap items-baseline gap-x-1.5 font-mono text-xs ${className}`}
     >
-      {children}
+      {shown.map((item, i) => {
+        const text = typeof item === 'string' ? item : item.text
+        const tone = typeof item === 'string' ? undefined : item.tone
+        return (
+          <span
+            key={`${i}-${text}`}
+            className={
+              tone === 'lead' ? 'text-accent' : tone === 'warm' ? 'text-warm' : undefined
+            }
+          >
+            {i > 0 && (
+              <span className="text-muted mr-1.5 opacity-60" aria-hidden>
+                ·
+              </span>
+            )}
+            {text}
+          </span>
+        )
+      })}
     </span>
+  )
+}
+
+/**
+ * A ranked result, the same everywhere a list is scored: recommendations,
+ * cross-family picks, pairing picks and the hub's picks. Rank, a wrapping
+ * name, an optional mono detail (the type) and score, a score bar when the
+ * score exists, and a one-line reason.
+ */
+export function Row({
+  rank,
+  name,
+  detail,
+  score,
+  reason,
+  onOpen,
+}: {
+  rank: number
+  name: string
+  detail?: string
+  /** 0..1; omit when the list is ranked by rating alone. */
+  score?: number
+  reason: string
+  onOpen: () => void
+}) {
+  const pct = score == null ? null : Math.round(score * 100)
+  return (
+    <button
+      onClick={onOpen}
+      className="border-line bg-panel-2/50 hover:border-accent/60 group w-full rounded-lg border p-3 text-left transition-colors"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="text-muted shrink-0 font-mono text-xs">#{rank}</span>
+          <span className="font-display text-fg group-hover:text-accent font-medium break-words transition-colors">
+            {name}
+          </span>
+        </span>
+        {(detail || pct != null) && (
+          <span className="text-muted shrink-0 pt-0.5 text-right font-mono text-xs">
+            {detail}
+            {pct != null && (
+              <span className="text-accent">
+                {detail ? ' · ' : ''}
+                {pct}%
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+      {pct != null && (
+        <div className="bg-line mt-2 h-1 overflow-hidden rounded-full">
+          <div className="bg-accent h-full rounded-full" style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      <p className="text-muted mt-2 text-sm">{reason}</p>
+    </button>
   )
 }
 
@@ -161,7 +242,22 @@ export function Spinner({ label = 'Loading…' }: { label?: string }) {
   )
 }
 
-export function ErrorNote({ children }: { children: ReactNode }) {
+/** A sentence the app needs you to read: `danger` for a failure with its
+ *  message, `soft` for a fallback the app handled on its own. */
+export function Notice({
+  tone = 'danger',
+  children,
+}: {
+  tone?: 'danger' | 'soft'
+  children: ReactNode
+}) {
+  if (tone === 'soft') {
+    return (
+      <div className="border-warm/30 bg-warm/5 text-warm/90 rounded-lg border px-3 py-2 text-xs">
+        {children}
+      </div>
+    )
+  }
   return (
     <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
       {children}

@@ -31,16 +31,17 @@ import {
   rankPairings,
   resolveCigar,
   type Occasion,
-  type PairingPick,
   type ResolvedCigar,
   type Wrapper,
 } from '../lib/pairing'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
-import Narration, { type NarrationLink } from './Narration'
+import Narration, { NarrationBox, type NarrationLink } from './Narration'
 import {
   Field,
+  Notice,
   Panel,
+  Row,
   SectionTitle,
   Segmented,
   Spinner,
@@ -49,7 +50,6 @@ import {
   ghostButtonClass,
   inputClass,
   labelClass,
-  ErrorNote,
 } from './ui'
 
 type Kind = 'food' | 'cigar'
@@ -310,7 +310,7 @@ export default function PairingPage({ onRequireAuth }: Props) {
         </form>
       </Panel>
 
-      {loadError && <ErrorNote>Couldn’t load the cabinet: {loadError}</ErrorNote>}
+      {loadError && <Notice>Couldn’t load the cabinet: {loadError}</Notice>}
       {!all && !loadError && <Spinner label="Opening the cabinet…" />}
 
       {submitted && occasion && (
@@ -368,10 +368,13 @@ export default function PairingPage({ onRequireAuth }: Props) {
                   <ol className="flex flex-col gap-2.5">
                     {picks.map((p, i) => (
                       <li key={p.bottle.id}>
-                        <PickRow
-                          pick={p}
+                        <Row
                           rank={i + 1}
-                          showScore={occasion.target !== null}
+                          name={p.bottle.name}
+                          detail={p.bottle.type}
+                          score={occasion.target !== null ? p.score : undefined}
+                          reason={p.reason}
+                          onOpen={() => navigate(href.detail(p.bottle.id))}
                         />
                       </li>
                     ))}
@@ -407,7 +410,7 @@ export default function PairingPage({ onRequireAuth }: Props) {
             <div
               className={`lg:col-span-1 ${narrationLeads ? 'order-first lg:order-none' : 'order-last'}`}
             >
-              <NarrationBox
+              <PairingNarration
                 state={narration}
                 links={links}
                 onRequireAuth={onRequireAuth}
@@ -420,7 +423,7 @@ export default function PairingPage({ onRequireAuth }: Props) {
   )
 }
 
-function NarrationBox({
+function PairingNarration({
   state,
   links,
   onRequireAuth,
@@ -431,10 +434,7 @@ function NarrationBox({
 }) {
   if (state.status === 'idle') return null
   return (
-    <div className="border-warm/30 bg-warm/5 rounded-lg border p-4">
-      <div className="text-warm mb-2 flex items-center gap-1.5 font-mono text-[0.7rem] tracking-wide">
-        <span aria-hidden>✦</span> narrated pairing
-      </div>
+    <NarrationBox label="narrated pairing">
       {state.status === 'loading' && (
         <p className="text-muted flex items-center gap-3 text-sm">
           <span className="border-accent inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-t-transparent" />
@@ -467,44 +467,7 @@ function NarrationBox({
           </button>
         </div>
       )}
-    </div>
-  )
-}
-
-function PickRow({
-  pick,
-  rank,
-  showScore,
-}: {
-  pick: PairingPick
-  rank: number
-  showScore: boolean
-}) {
-  const pct = Math.round(pick.score * 100)
-  return (
-    <button
-      onClick={() => navigate(href.detail(pick.bottle.id))}
-      className="border-line bg-panel-2/50 hover:border-accent/60 group w-full rounded-lg border p-3 text-left transition-colors"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex min-w-0 items-baseline gap-2">
-          <span className="text-muted shrink-0 font-mono text-xs">#{rank}</span>
-          <span className="font-display text-fg group-hover:text-accent font-medium break-words transition-colors">
-            {pick.bottle.name}
-          </span>
-        </span>
-        <span className="text-muted shrink-0 pt-0.5 text-right font-mono text-xs">
-          {pick.bottle.type}
-          {showScore && <span className="text-accent"> · {pct}%</span>}
-        </span>
-      </div>
-      {showScore && (
-        <div className="bg-line mt-2 h-1 overflow-hidden rounded-full">
-          <div className="bg-accent h-full rounded-full" style={{ width: `${pct}%` }} />
-        </div>
-      )}
-      <p className="text-muted mt-2 text-sm">{pick.reason}</p>
-    </button>
+    </NarrationBox>
   )
 }
 

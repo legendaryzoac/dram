@@ -26,13 +26,14 @@ import {
 } from '../lib/hub'
 import { rankByTasteProfile, type ScoredBottle } from '../lib/recommend'
 import {
+  Meta,
+  Notice,
   Panel,
+  Row,
   SectionTitle,
   Spinner,
-  Tag,
   buttonClass,
   ghostButtonClass,
-  ErrorNote,
 } from './ui'
 
 const RECENT_NOTES = 8
@@ -90,7 +91,7 @@ export default function AccountPage({ onRequireAuth }: Props) {
   if (error) {
     return (
       <div className="flex flex-col gap-4">
-        <ErrorNote>Couldn’t load your hub: {error}</ErrorNote>
+        <Notice>Couldn’t load your hub: {error}</Notice>
       </div>
     )
   }
@@ -130,12 +131,14 @@ export default function AccountPage({ onRequireAuth }: Props) {
         </button>
       </header>
 
-      <div className="flex flex-wrap gap-2">
-        <Tag>{cabinet.length} {cabinet.length === 1 ? 'bottle' : 'bottles'}</Tag>
-        <Tag>{coffees.length} {coffees.length === 1 ? 'coffee' : 'coffees'}</Tag>
-        <Tag tone="accent">{notes.length} {notes.length === 1 ? 'note' : 'notes'} written</Tag>
-        {avg != null && <Tag tone="warm">{avg.toFixed(1)} / 10 average</Tag>}
-      </div>
+      <Meta
+        items={[
+          `${cabinet.length} ${cabinet.length === 1 ? 'bottle' : 'bottles'}`,
+          `${coffees.length} ${coffees.length === 1 ? 'coffee' : 'coffees'}`,
+          `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} written`,
+          avg != null && { text: `${avg.toFixed(1)} / 10 average`, tone: 'warm' },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
@@ -291,23 +294,14 @@ function PickList({ label, picks }: { label: string; picks: ScoredBottle[] }) {
         <ol className="flex flex-col gap-2">
           {picks.map((p, i) => (
             <li key={p.bottle.id}>
-              <button
-                onClick={() => navigate(href.detail(p.bottle.id))}
-                className="border-line bg-panel-2/50 hover:border-accent/60 group w-full rounded-lg border p-3 text-left transition-colors"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="text-muted font-mono text-xs">#{i + 1}</span>
-                    <span className="font-display text-fg group-hover:text-accent truncate font-medium transition-colors">
-                      {p.bottle.name}
-                    </span>
-                  </span>
-                  <span className="text-accent shrink-0 font-mono text-xs">
-                    {Math.round(p.score * 100)}%
-                  </span>
-                </div>
-                <p className="text-muted mt-1.5 text-sm">{p.reason}</p>
-              </button>
+              <Row
+                rank={i + 1}
+                name={p.bottle.name}
+                detail={p.bottle.type}
+                score={p.score}
+                reason={p.reason}
+                onOpen={() => navigate(href.detail(p.bottle.id))}
+              />
             </li>
           ))}
         </ol>

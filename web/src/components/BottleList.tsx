@@ -1,8 +1,8 @@
 /**
  * Bottle list — one component, two tabs: the cabinet (route `#/`, alcohol) and
- * the coffee bar (route `#/coffee`). Cards showing name / producer / region /
- * type, average rating, and note count, with client-side search + type/roast
- * and region filters. The "Add" action is auth-gated; signed-out visitors get
+ * the coffee bar (route `#/coffee`). Cards showing name / producer, average
+ * rating, one meta line (type · region · strength), and note count, with
+ * client-side search + type/roast and region filters. The "Add" action is auth-gated; signed-out visitors get
  * a prompt to sign in or enter demo mode.
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -12,13 +12,13 @@ import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
 import {
+  Meta,
+  Notice,
   Panel,
   RatingBadge,
   Spinner,
-  Tag,
   buttonClass,
   inputClass,
-  ErrorNote,
 } from './ui'
 
 interface Props {
@@ -169,7 +169,7 @@ export default function BottleList({ family, onRequireAuth }: Props) {
         </select>
       </div>
 
-      {error && <ErrorNote>Couldn’t load the list: {error}</ErrorNote>}
+      {error && <Notice>Couldn’t load the list: {error}</Notice>}
       {!bottles && !error && <Spinner label={copy.spinner} />}
 
       {bottles && filtered.length === 0 && (
@@ -205,16 +205,17 @@ export default function BottleList({ family, onRequireAuth }: Props) {
                 {b.grape}
               </span>
             )}
-            <div className="mt-auto flex flex-wrap items-center gap-2">
-              <Tag tone="accent">{b.type}</Tag>
-              <Tag>{b.region}</Tag>
-              {isCoffee(b.type) ? (
-                b.roast && <Tag>{b.roast} roast</Tag>
-              ) : (
-                <Tag>{b.abv}% ABV</Tag>
-              )}
-              {b.style && <Tag>{b.style}</Tag>}
-              <span className="text-muted ml-auto font-mono text-xs">
+            <div className="mt-auto flex items-baseline justify-between gap-3">
+              {/* One quiet line: type (the lead) · region · strength. Style,
+                  process and price belong to the detail page. */}
+              <Meta
+                items={[
+                  { text: b.type, tone: 'lead' },
+                  b.region,
+                  isCoffee(b.type) ? b.roast && `${b.roast} roast` : `${b.abv}% ABV`,
+                ]}
+              />
+              <span className="text-muted shrink-0 font-mono text-xs">
                 {b.noteCount} {b.noteCount === 1 ? 'note' : 'notes'}
               </span>
             </div>

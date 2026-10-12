@@ -90,3 +90,25 @@ function linkify(text: string, matcher: Matcher | null): ReactNode {
   if (last < text.length) out.push(text.slice(last))
   return out
 }
+
+/**
+ * The warm box that holds narrated prose, or its loading / unavailable /
+ * signed-out states. The ✦ label names what it is: "narrated pick" on a
+ * bottle page, "narrated pairing" on the pair tab.
+ */
+export function NarrationBox({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="border-warm/30 bg-warm/5 rounded-lg border px-4 py-3">
+      <div className="text-warm mb-1 flex items-center gap-1.5 font-mono text-[0.7rem] tracking-wide">
+        <span aria-hidden>✦</span> {label}
+      </div>
+      {children}
+    </div>
+  )
+}

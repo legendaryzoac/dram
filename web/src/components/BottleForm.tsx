@@ -27,7 +27,7 @@ import {
   buttonClass,
   ghostButtonClass,
   inputClass,
-  ErrorNote,
+  Notice,
   Spinner,
 } from './ui'
 
@@ -301,7 +301,7 @@ export default function BottleForm({ editId, initialFamily }: Props) {
             </Field>
           </div>
 
-          {error && <ErrorNote>{error}</ErrorNote>}
+          {error && <Notice>{error}</Notice>}
 
           <div className="flex gap-3">
             <button className={buttonClass} disabled={busy}>
