@@ -27,6 +27,13 @@ export const ghostButtonClass =
   'rounded-lg border border-line bg-panel px-4 py-2 text-sm font-medium ' +
   'text-fg transition-colors hover:border-accent hover:text-accent'
 
+/** The destructive step of a confirm, in the danger palette — shown only
+ *  beside a way out, never as the first thing offered. */
+export const dangerButtonClass =
+  'rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-medium ' +
+  'text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50 ' +
+  'disabled:cursor-not-allowed'
+
 export function Panel({
   children,
   className = '',

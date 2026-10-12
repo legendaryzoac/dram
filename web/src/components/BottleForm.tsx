@@ -4,7 +4,10 @@
  * plus per-category fields: grape (wine), style (spirits — and the free-text
  * description for `other`), roast + process (coffee). The type dropdown is
  * driven by TYPE_GROUPS in lib/types. On add it posts a new bottle; on edit
- * it PUTs a partial update. Redirects to the bottle's detail page.
+ * it PUTs a partial update. Redirects to the bottle's detail page. Editing
+ * also offers a delete behind a confirm that names the bottle and how many
+ * notes go with it; the API removes those too, and the form returns to the
+ * list.
  */
 import { useEffect, useState } from 'react'
 import type { BeverageFamily, Bottle, NewBottleInput } from '../lib/types'
@@ -25,6 +28,7 @@ import {
   Field,
   Panel,
   buttonClass,
+  dangerButtonClass,
   ghostButtonClass,
   inputClass,
   Notice,
@@ -57,6 +61,11 @@ export default function BottleForm({ editId, initialFamily }: Props) {
   const [loading, setLoading] = useState(editing)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Delete (edit only): how many notes the confirm should warn about, and
+  // whether the confirm is open / in flight.
+  const [noteCount, setNoteCount] = useState(0)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   function hydrate(b: Bottle) {
     setName(b.name)
@@ -80,6 +89,7 @@ export default function BottleForm({ editId, initialFamily }: Props) {
       .then(({ bottle }) => {
         if (!live) return
         hydrate(bottle)
+        setNoteCount(bottle.noteCount)
         setLoading(false)
       })
       .catch((e) => {
@@ -130,9 +140,24 @@ export default function BottleForm({ editId, initialFamily }: Props) {
     }
   }
 
+  /** Delete the bottle and its notes, then return to its family's list. */
+  async function remove() {
+    if (!token || !editId) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await getApi().deleteBottle(editId, token)
+      navigate(href.list(familyOf(type)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete bottle')
+      setDeleting(false)
+    }
+  }
+
   if (loading) return <Spinner label="Loading bottle…" />
 
   const backHref = editId ? href.detail(editId) : href.list(familyOf(type))
+  const thing = coffee ? 'coffee' : 'bottle'
 
   return (
     <div className="mx-auto max-w-xl">
@@ -323,6 +348,48 @@ export default function BottleForm({ editId, initialFamily }: Props) {
             </button>
           </div>
         </form>
+
+        {editing && (
+          <div className="border-line mt-6 border-t pt-4">
+            {confirmDelete ? (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4">
+                <p className="text-sm text-red-300">
+                  Delete {name.trim() || `this ${thing}`}?{' '}
+                  {noteCount > 0 &&
+                    `Its ${noteCount} ${noteCount === 1 ? 'note goes' : 'notes go'} with it. `}
+                  This can’t be undone.
+                </p>
+                <div className="mt-3 flex gap-3">
+                  <button
+                    type="button"
+                    className={dangerButtonClass}
+                    onClick={remove}
+                    disabled={deleting}
+                  >
+                    {deleting ? 'Deleting…' : `Delete ${thing}`}
+                  </button>
+                  <button
+                    type="button"
+                    className={ghostButtonClass}
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={deleting}
+                  >
+                    Keep it
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={busy}
+                className="text-muted font-mono text-xs transition-colors hover:text-red-300 disabled:opacity-50"
+              >
+                Delete this {thing}
+              </button>
+            )}
+          </div>
+        )}
       </Panel>
     </div>
   )

@@ -81,6 +81,17 @@ describe('mock API — contract', () => {
     expect(after.some((b) => b.id === made.id)).toBe(true)
   })
 
+  it('deleteBottle removes the bottle and its notes; a second delete 404s', async () => {
+    const api = makeMockApi()
+    await api.deleteBottle('b-lagavulin-16', 'demo-token')
+    await expect(api.getBottle('b-lagavulin-16')).rejects.toMatchObject({ status: 404 })
+    expect((await api.listBottles()).some((b) => b.id === 'b-lagavulin-16')).toBe(false)
+    await expect(api.deleteBottle('b-lagavulin-16', 'demo-token')).rejects.toMatchObject({
+      status: 404,
+    })
+    await expect(api.deleteBottle('b-ardbeg-10', '')).rejects.toMatchObject({ status: 401 })
+  })
+
   it('addNote recomputes avgRating and flavor profile', async () => {
     const api = makeMockApi()
     const made = await api.createBottle(
