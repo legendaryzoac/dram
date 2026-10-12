@@ -2,7 +2,8 @@
  * Bottle list — one component, two tabs: the cabinet (route `#/`, alcohol) and
  * the coffee bar (route `#/coffee`). Cards showing name / producer, average
  * rating, one meta line (type · region · strength), and note count, with
- * client-side search + type/roast and region filters. The "Add" action is auth-gated; signed-out visitors get
+ * client-side search plus type/roast, region, and notes (with / without)
+ * filters. The "Add" action is auth-gated; signed-out visitors get
  * a prompt to sign in or enter demo mode.
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -36,6 +37,8 @@ const COPY: Record<
     loading: string
     spinner: string
     empty: string
+    /** The "no filter" option of the notes select. */
+    all: string
   }
 > = {
   alcohol: {
@@ -45,6 +48,7 @@ const COPY: Record<
     loading: 'Loading bottles…',
     spinner: 'Pouring the list…',
     empty: 'No bottles match those filters.',
+    all: 'All bottles',
   },
   coffee: {
     title: 'The coffee bar',
@@ -53,8 +57,13 @@ const COPY: Record<
     loading: 'Loading coffees…',
     spinner: 'Grinding the list…',
     empty: 'No coffees match those filters.',
+    all: 'All coffees',
   },
 }
+
+/** Whether a bottle has tasting notes yet — the filter that separates what
+ *  you've written up from what's still waiting on the shelf. */
+type NotesFilter = 'all' | 'with' | 'without'
 
 export default function BottleList({ family, onRequireAuth }: Props) {
   const { token } = useAuth()
@@ -63,6 +72,7 @@ export default function BottleList({ family, onRequireAuth }: Props) {
   const [query, setQuery] = useState('')
   const [type, setType] = useState('all')
   const [region, setRegion] = useState('all')
+  const [notes, setNotes] = useState<NotesFilter>('all')
 
   useEffect(() => {
     let live = true
@@ -99,6 +109,8 @@ export default function BottleList({ family, onRequireAuth }: Props) {
       const facet = coffeeTab ? (b.roast ?? '') : b.type
       if (type !== 'all' && facet !== type) return false
       if (region !== 'all' && b.region !== region) return false
+      if (notes === 'with' && b.noteCount === 0) return false
+      if (notes === 'without' && b.noteCount > 0) return false
       if (!q) return true
       return (
         b.name.toLowerCase().includes(q) ||
@@ -106,7 +118,7 @@ export default function BottleList({ family, onRequireAuth }: Props) {
         b.region.toLowerCase().includes(q)
       )
     })
-  }, [bottles, query, type, region, coffeeTab])
+  }, [bottles, query, type, region, notes, coffeeTab])
 
   function addBottle() {
     if (token) navigate(href.add(family))
@@ -123,8 +135,10 @@ export default function BottleList({ family, onRequireAuth }: Props) {
             {copy.title}
           </h1>
           <p className="text-muted mt-1 text-sm">
-            {bottles ? copy.unit(bottles.length) : copy.loading} · tap one for
-            notes, radar &amp; recommendations
+            {bottles ? copy.unit(bottles.length) : copy.loading}
+            {bottles && filtered.length !== bottles.length
+              ? ` · showing ${filtered.length}`
+              : ' · tap one for notes, radar & recommendations'}
           </p>
         </div>
         <button className={buttonClass} onClick={addBottle}>
@@ -132,9 +146,11 @@ export default function BottleList({ family, onRequireAuth }: Props) {
         </button>
       </header>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      {/* Phones: search, then type | region side by side, then notes — three
+          rows, as before the notes filter. From 640px: one row. */}
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row">
         <input
-          className={`${inputClass} sm:max-w-xs`}
+          className={`${inputClass} col-span-2 sm:max-w-xs`}
           placeholder={
             coffeeTab
               ? 'Search name, roaster, origin…'
@@ -166,6 +182,16 @@ export default function BottleList({ family, onRequireAuth }: Props) {
               {r === 'all' ? (coffeeTab ? 'All origins' : 'All regions') : r}
             </option>
           ))}
+        </select>
+        <select
+          className={`${inputClass} col-span-2 sm:w-40`}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value as NotesFilter)}
+          aria-label="Filter by notes"
+        >
+          <option value="all">{copy.all}</option>
+          <option value="with">With notes</option>
+          <option value="without">No notes yet</option>
         </select>
       </div>
 
