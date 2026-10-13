@@ -227,13 +227,19 @@ export function Segmented<T extends string>({
   )
 }
 
-/** Star-ish rating out of 10, shown as a compact numeric chip. */
+/** The rating figure, or "no notes yet". Never shrinks or wraps: beside a
+ *  long name it is the name that truncates, so every card's right edge
+ *  reads the same. */
 export function RatingBadge({ value }: { value: number | null }) {
   if (value == null) {
-    return <span className="text-muted font-mono text-xs">no notes yet</span>
+    return (
+      <span className="text-muted shrink-0 font-mono text-xs whitespace-nowrap">
+        no notes yet
+      </span>
+    )
   }
   return (
-    <span className="text-warm inline-flex items-baseline gap-1 font-mono">
+    <span className="text-warm inline-flex shrink-0 items-baseline gap-1 font-mono whitespace-nowrap">
       <span className="text-lg font-medium">{value.toFixed(1)}</span>
       <span className="text-muted text-xs">/ 10</span>
     </span>

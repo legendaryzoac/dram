@@ -241,9 +241,12 @@ export default function BottleList({ family, onRequireAuth }: Props) {
                   isCoffee(b.type) ? b.roast && `${b.roast} roast` : `${b.abv}% ABV`,
                 ]}
               />
-              <span className="text-muted shrink-0 font-mono text-xs">
-                {b.noteCount} {b.noteCount === 1 ? 'note' : 'notes'}
-              </span>
+              {/* The badge already says "no notes yet" — no "0 notes" echo. */}
+              {b.noteCount > 0 && (
+                <span className="text-muted shrink-0 font-mono text-xs">
+                  {b.noteCount} {b.noteCount === 1 ? 'note' : 'notes'}
+                </span>
+              )}
             </div>
           </button>
         ))}
