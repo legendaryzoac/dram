@@ -42,6 +42,7 @@ function detail(
       type,
       abv: 40,
       price: null,
+      status: 'cabinet',
       createdAt: '2026-01-01T00:00:00.000Z',
       avgRating: null,
       flavorProfile,

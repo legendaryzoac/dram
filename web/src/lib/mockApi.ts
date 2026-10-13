@@ -16,6 +16,7 @@
 import type {
   Bottle,
   BottleDetail,
+  BottleStatus,
   FlavorTags,
   PairingNarration,
   PairingRequest,
@@ -24,7 +25,7 @@ import type {
   RecommendationResult,
   TastingNote,
 } from './types'
-import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf, normalizeRoast } from './types'
+import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf, normalizeRoast, onShelf } from './types'
 import type { DramApi } from './api'
 import { ApiError } from './api'
 import { rankBySimilarity, type ScoredBottle } from './recommend'
@@ -58,8 +59,8 @@ function meanProfile(notes: TastingNote[]): FlavorTags | null {
 interface Seed {
   bottle: Omit<
     Bottle,
-    'avgRating' | 'flavorProfile' | 'noteCount' | 'createdAt'
-  > & { createdAtDaysAgo: number }
+    'avgRating' | 'flavorProfile' | 'noteCount' | 'createdAt' | 'status'
+  > & { createdAtDaysAgo: number; status?: BottleStatus }
   notes: Array<Omit<TastingNote, 'id' | 'bottleId' | 'createdAt'>>
 }
 
@@ -97,6 +98,7 @@ const SEEDS: Seed[] = [
     bottle: {
       id: 'b-ardbeg-10',
       name: 'Ardbeg 10',
+      status: 'finished',
       producer: 'Ardbeg',
       region: 'Islay',
       type: 'scotch',
@@ -307,6 +309,7 @@ const SEEDS: Seed[] = [
     bottle: {
       id: 'b-hibiki-harmony',
       name: 'Hibiki Japanese Harmony',
+      status: 'tasted',
       producer: 'Suntory',
       region: 'Japan',
       type: 'japanese whisky',
@@ -628,7 +631,7 @@ function buildStore(): Store {
   const notes = new Map<string, TastingNote[]>()
 
   for (const seed of SEEDS) {
-    const { createdAtDaysAgo, ...base } = seed.bottle
+    const { createdAtDaysAgo, status = 'cabinet', ...base } = seed.bottle
     const bottleNotes: TastingNote[] = seed.notes.map((n, i) => ({
       ...n,
       id: `${base.id}-n${i + 1}`,
@@ -638,6 +641,7 @@ function buildStore(): Store {
     notes.set(base.id, bottleNotes)
     bottles.set(base.id, {
       ...base,
+      status,
       createdAt: new Date(NOW - createdAtDaysAgo * DAY).toISOString(),
       avgRating: avg(bottleNotes),
       flavorProfile: meanProfile(bottleNotes),
@@ -798,6 +802,7 @@ export function makeMockApi(): DramApi {
         type: input.type,
         abv: input.abv,
         price: input.price ?? null,
+        status: input.status ?? 'cabinet',
         grape: optField(input.grape),
         style: optField(input.style),
         roast: optRoast(input.roast),
@@ -825,6 +830,7 @@ export function makeMockApi(): DramApi {
         type: input.type ?? existing.type,
         abv: input.abv ?? existing.abv,
         price: input.price === undefined ? existing.price : (input.price ?? null),
+        status: input.status ?? existing.status,
         grape: optField(input.grape, existing.grape),
         style: optField(input.style, existing.style),
         roast: optRoast(input.roast, existing.roast),
@@ -940,9 +946,10 @@ export function makeMockApi(): DramApi {
     async pairingNarration(input, token) {
       await wait()
       requireToken(token)
+      // Like the real API: only what is on the shelf can be poured.
       const shortlist = (input.candidateIds ?? [])
         .map((id) => store.bottles.get(id))
-        .filter((b): b is Bottle => b !== undefined)
+        .filter((b): b is Bottle => b !== undefined && onShelf(b))
       return pairingNarrationFor(input, shortlist)
     },
 

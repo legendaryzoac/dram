@@ -114,6 +114,27 @@ export interface FlavorTags {
   spicy: number
 }
 
+/**
+ * Where a bottle stands with the drinker. `cabinet` is on the shelf — the
+ * default, and what every bottle logged before this field existed reads as;
+ * `finished` was owned and is gone, its notes kept; `tasted` was tried
+ * somewhere else (a bar, a friend's, a distillery) and never owned. Pairing's
+ * "what to pour" and tonight's picks draw from the cabinet only; "bottles like
+ * this", menu tips, and your palate use all three.
+ */
+export type BottleStatus = 'cabinet' | 'finished' | 'tasted'
+export const BOTTLE_STATUSES = ['cabinet', 'finished', 'tasted'] as const
+
+/** How each status reads in the form, the filters, and on a card. */
+export const STATUS_LABELS: Record<BottleStatus, string> = {
+  cabinet: 'on the shelf',
+  finished: 'finished',
+  tasted: 'tasted elsewhere',
+}
+
+/** What can be poured tonight. */
+export const onShelf = (b: Pick<Bottle, 'status'>) => b.status === 'cabinet'
+
 export interface Bottle {
   id: string
   name: string
@@ -122,6 +143,8 @@ export interface Bottle {
   type: string
   abv: number
   price: number | null
+  /** Always present on the wire; the API fills `cabinet` in for older rows. */
+  status: BottleStatus
   /** Prominent grape variety — shown as a label for wines (optional). */
   grape?: string
   /** Expression/style — shown for spirits (optional): reposado, VSOP… */
@@ -260,6 +283,8 @@ export interface NewBottleInput {
   type: string
   abv: number
   price?: number | null
+  /** Defaults to `cabinet` when omitted. */
+  status?: BottleStatus
   /** Grape variety, for wines (optional). */
   grape?: string | null
   /** Expression/style, for spirits (optional). */

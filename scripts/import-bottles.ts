@@ -14,8 +14,10 @@
  *   npm run import:bottles -- --validate-only      # check the file, no AWS calls
  *
  * The file is an array of { name, producer, region, type, abv, style?, price?,
- * count?, verify? }. `count` and `verify` are notes to you — a multiple on your
- * shelf, a value to double-check — and are printed, never stored.
+ * status?, count?, verify? }. `status` is cabinet (the default: on the shelf),
+ * finished, or tasted (tried elsewhere, never owned). `count` and `verify` are
+ * notes to you — a multiple on your shelf, a value to double-check — and are
+ * printed, never stored.
  */
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -26,7 +28,7 @@ import {
   PutCommand,
   ScanCommand,
 } from '@aws-sdk/lib-dynamodb'
-import type { BottleItem } from '../api/src/types'
+import { BOTTLE_STATUSES, type BottleItem, type BottleStatus } from '../api/src/types'
 
 interface ImportEntry {
   name: string
@@ -36,6 +38,7 @@ interface ImportEntry {
   abv: number
   style?: string
   price?: number | null
+  status?: BottleStatus
   count?: number
   verify?: string
 }
@@ -87,6 +90,12 @@ function loadEntries(file: string): ImportEntry[] {
     if (e.price != null && (typeof e.price !== 'number' || e.price < 0)) {
       fail(`${where}: price must be a non-negative number or null`)
     }
+    if (
+      e.status !== undefined &&
+      !(BOTTLE_STATUSES as readonly unknown[]).includes(e.status)
+    ) {
+      fail(`${where}: status must be cabinet, finished, or tasted`)
+    }
     return {
       name,
       producer: str(e.producer, 200, 'producer'),
@@ -95,6 +104,7 @@ function loadEntries(file: string): ImportEntry[] {
       abv: e.abv,
       style: e.style === undefined || e.style === null ? undefined : str(e.style, 120, 'style'),
       price: e.price ?? null,
+      status: e.status,
       count: e.count,
       verify: e.verify,
     }
@@ -166,6 +176,7 @@ function toItem(e: ImportEntry, createdAt: string): BottleItem {
     type_: e.type,
     abv: e.abv,
     price: e.price ?? null,
+    status: e.status ?? 'cabinet',
     style: e.style,
     createdAt,
   }

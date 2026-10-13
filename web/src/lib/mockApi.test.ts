@@ -301,3 +301,45 @@ describe('mock API — contract', () => {
     expect(await api.health()).toEqual({ ok: true })
   })
 })
+
+describe('mock API — bottle status', () => {
+  it('seeds a finished bottle and a bar pour beside the shelf', async () => {
+    const bottles = await makeMockApi().listBottles()
+    const statusOf = (id: string) => bottles.find((b) => b.id === id)?.status
+    expect(statusOf('b-ardbeg-10')).toBe('finished')
+    expect(statusOf('b-hibiki-harmony')).toBe('tasted')
+    expect(bottles.filter((b) => b.status === 'cabinet').length).toBe(bottles.length - 2)
+  })
+
+  it('createBottle defaults to the cabinet and keeps a given status; updateBottle moves it', async () => {
+    const api = makeMockApi()
+    const shelf = await api.createBottle(
+      { name: 'Shelf', producer: 'p', region: 'r', type: 'rye', abv: 45 },
+      't',
+    )
+    expect(shelf.status).toBe('cabinet')
+    const bar = await api.createBottle(
+      { name: 'Bar pour', producer: 'p', region: 'r', type: 'rye', abv: 45, status: 'tasted' },
+      't',
+    )
+    expect(bar.status).toBe('tasted')
+    expect((await api.updateBottle(shelf.id, { status: 'finished' }, 't')).status).toBe('finished')
+    expect((await api.getBottle(shelf.id)).bottle.status).toBe('finished')
+    // An edit that doesn't mention the status leaves it alone.
+    expect((await api.updateBottle(bar.id, { price: 60 }, 't')).status).toBe('tasted')
+  })
+
+  it('pairingNarration pours only from the shelf', async () => {
+    const api = makeMockApi()
+    const offShelf = await api.pairingNarration(
+      { kind: 'food', text: 'oysters', candidateIds: ['b-hibiki-harmony', 'b-ardbeg-10'] },
+      't',
+    )
+    expect(offShelf.narration).toMatch(/nothing in the cabinet/)
+    const mixed = await api.pairingNarration(
+      { kind: 'food', text: 'oysters', candidateIds: ['b-hibiki-harmony', 'b-lagavulin-16'] },
+      't',
+    )
+    expect(mixed.narration).toMatch(/\*\*Lagavulin 16\*\*/)
+  })
+})

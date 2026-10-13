@@ -17,7 +17,7 @@
  * drinker submits a pairing; nothing here calls the network.
  */
 import type { Bottle, CigarStrength, FlavorTags } from './types'
-import { FLAVOR_AXES, canonicalType, familyOf, typeGroupOf } from './types'
+import { FLAVOR_AXES, canonicalType, familyOf, onShelf, typeGroupOf } from './types'
 import { capitalize, cosine, flavorVector, sharedFlavors } from './recommend'
 
 // ---- shapes ----
@@ -966,9 +966,9 @@ const DEFAULT_RATING = 6
 const NO_PROFILE_SIMILARITY = 0.5
 
 /**
- * Rank the cabinet (coffee excluded) for an occasion. Score blends flavor
- * similarity to the target (45%), type affinity (40%), and the drinker's own
- * rating (15%). With no target (an unknown dish) there is nothing to pair
+ * Rank what's on the shelf (coffee, finished bottles, and bottles only tasted
+ * elsewhere excluded) for an occasion. Score blends flavor similarity to the
+ * target (45%), type affinity (40%), and the drinker's own rating (15%). With no target (an unknown dish) there is nothing to pair
  * against, so it is the drinker's rating alone — their best-rated bottles.
  */
 export function rankPairings(
@@ -978,7 +978,9 @@ export function rankPairings(
 ): PairingPick[] {
   const targetVec = occasion.target ? flavorVector(occasion.target) : null
   return bottles
-    .filter((b) => familyOf(b.type) === 'alcohol')
+    // What can actually be poured: alcohol that is on the shelf. A finished
+    // bottle or one tasted elsewhere still anchors the menu tips (orderTips).
+    .filter((b) => familyOf(b.type) === 'alcohol' && onShelf(b))
     .map((b) => {
       const aff = affinityFor(occasion, b.type)
       const sim =

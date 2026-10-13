@@ -19,6 +19,7 @@
 import type {
   Bottle,
   BottleDetail,
+  BottleStatus,
   NewBottleInput,
   NewNoteInput,
   PairingNarration,
@@ -93,6 +94,15 @@ async function parse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/** A bottle as an API built before statuses existed sends it. */
+type WireBottle = Omit<Bottle, 'status'> & { status?: BottleStatus }
+
+/** Fill the status in when the API didn't: every such bottle is on the
+ *  shelf, which is also what the API itself answers once it knows the field. */
+function withStatus(b: WireBottle): Bottle {
+  return { ...b, status: b.status ?? 'cabinet' }
+}
+
 function authHeaders(token: string, json: boolean): HeadersInit {
   const h: Record<string, string> = { Authorization: `Bearer ${token}` }
   if (json) h['content-type'] = 'application/json'
@@ -103,10 +113,14 @@ export function makeRealApi(baseUrl = API_BASE_URL): DramApi {
   const url = (path: string) => `${baseUrl}${path}`
   return {
     async listBottles() {
-      return parse<Bottle[]>(await fetch(url('/bottles')))
+      const list = await parse<WireBottle[]>(await fetch(url('/bottles')))
+      return list.map(withStatus)
     },
     async getBottle(id) {
-      return parse<BottleDetail>(await fetch(url(`/bottles/${id}`)))
+      const detail = await parse<Omit<BottleDetail, 'bottle'> & { bottle: WireBottle }>(
+        await fetch(url(`/bottles/${id}`)),
+      )
+      return { ...detail, bottle: withStatus(detail.bottle) }
     },
     async createBottle(input, token) {
       const res = await fetch(url('/bottles'), {
@@ -114,7 +128,7 @@ export function makeRealApi(baseUrl = API_BASE_URL): DramApi {
         headers: authHeaders(token, true),
         body: JSON.stringify(input),
       })
-      return parse<Bottle>(res)
+      return withStatus(await parse<WireBottle>(res))
     },
     async updateBottle(id, input, token) {
       const res = await fetch(url(`/bottles/${id}`), {
@@ -122,7 +136,7 @@ export function makeRealApi(baseUrl = API_BASE_URL): DramApi {
         headers: authHeaders(token, true),
         body: JSON.stringify(input),
       })
-      return parse<Bottle>(res)
+      return withStatus(await parse<WireBottle>(res))
     },
     async deleteBottle(id, token) {
       const res = await fetch(url(`/bottles/${id}`), {

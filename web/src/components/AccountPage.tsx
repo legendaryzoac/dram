@@ -2,15 +2,16 @@
  * Account hub (route `#/account`, reached from the footer's "account" link).
  * Signed out it's a sign-in prompt; signed in it shows:
  *   - who's signed in + sign out,
- *   - corpus stats (bottles / coffees / notes / average rating),
+ *   - corpus stats (what's on the shelf, what's finished or was only tasted
+ *     elsewhere, notes, average rating),
  *   - the drinker's aggregate palate on the radar,
- *   - "tonight's picks" — cabinet + coffee ranked against that palate,
+ *   - "tonight's picks" — what's on the shelf, ranked against that palate,
  *   - the tasting-note history, newest first.
  * Reads are public; the gate here is presentational (it's *your* page).
  */
 import { useEffect, useState } from 'react'
 import type { BottleDetail } from '../lib/types'
-import { familyOf, isCoffee } from '../lib/types'
+import { familyOf, isCoffee, onShelf } from '../lib/types'
 import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
@@ -102,8 +103,13 @@ export default function AccountPage({ onRequireAuth }: Props) {
   const palate = tasteProfile(notes)
   const avg = averageRating(notes)
 
-  const cabinet = bottles.filter((b) => familyOf(b.type) === 'alcohol')
-  const coffees = bottles.filter((b) => familyOf(b.type) === 'coffee')
+  // Tonight's picks pour from the shelf; the palate and the notes draw on
+  // everything, finished bottles and bar pours included.
+  const shelf = bottles.filter(onShelf)
+  const cabinet = shelf.filter((b) => familyOf(b.type) === 'alcohol')
+  const coffees = shelf.filter((b) => familyOf(b.type) === 'coffee')
+  const finished = bottles.filter((b) => b.status === 'finished').length
+  const tasted = bottles.filter((b) => b.status === 'tasted').length
   const cabinetPicks = palate
     ? rankByTasteProfile(palate, cabinet).slice(0, PICKS_PER_FAMILY)
     : []
@@ -133,8 +139,10 @@ export default function AccountPage({ onRequireAuth }: Props) {
 
       <Meta
         items={[
-          `${cabinet.length} ${cabinet.length === 1 ? 'bottle' : 'bottles'}`,
+          `${cabinet.length} ${cabinet.length === 1 ? 'bottle' : 'bottles'} on the shelf`,
           `${coffees.length} ${coffees.length === 1 ? 'coffee' : 'coffees'}`,
+          finished > 0 && `${finished} finished`,
+          tasted > 0 && `${tasted} tasted elsewhere`,
           `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} written`,
           avg != null && { text: `${avg.toFixed(1)} / 10 average`, tone: 'warm' },
         ]}

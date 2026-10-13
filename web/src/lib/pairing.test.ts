@@ -22,6 +22,7 @@ function bottle(
   type: string,
   flavor: Partial<FlavorTags> | null,
   avgRating: number | null = 8,
+  status: Bottle['status'] = 'cabinet',
 ): Bottle {
   seq += 1
   return {
@@ -32,6 +33,7 @@ function bottle(
     type,
     abv: 43,
     price: null,
+    status,
     createdAt: '2026-01-01T00:00:00Z',
     avgRating,
     flavorProfile: flavor ? { ...EMPTY_FLAVOR, ...flavor } : null,
@@ -285,5 +287,25 @@ describe('cigars', () => {
     expect(picks[0].bottle.name).toBe('Lagavulin 16')
     expect(picks.at(-1)!.bottle.name).toBe('Cloudy Bay Sauvignon Blanc')
     expect(picks.at(-1)!.reason).toMatch(/outside pick/i)
+  })
+})
+
+describe('bottle status', () => {
+  it('rankPairings pours only from the shelf', () => {
+    const gone = bottle('Empty Ardbeg', 'scotch', { smoky: 5, body: 4, oaky: 3 }, 9, 'finished')
+    const bar = bottle('Bar Hibiki', 'japanese whisky', { sweet: 3, floral: 3, body: 3 }, 9, 'tasted')
+    const names = rankPairings(matchFood('steak')!, [gone, bar, bourbon(), cab()]).map(
+      (p) => p.bottle.name,
+    )
+    expect(names).toContain('Buffalo Trace')
+    expect(names).toContain('Caymus Cabernet')
+    expect(names).not.toContain('Empty Ardbeg')
+    expect(names).not.toContain('Bar Hibiki')
+  })
+
+  it('orderTips still anchor on a favorite you only tasted elsewhere', () => {
+    const bar = bottle('Bar Caymus', 'red wine', { fruity: 5, body: 5 }, 9, 'tasted')
+    const tips = orderTips(matchFood('steak')!, [bar])
+    expect(tips[0].favorite?.name).toBe('Bar Caymus')
   })
 })

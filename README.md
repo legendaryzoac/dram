@@ -17,6 +17,13 @@ eight tasting axes, and recommender. Recommendations rank within the target's fa
 and also surface **"across the aisle"** picks — which coffees echo a wine's profile,
 and vice versa.
 
+Every bottle carries a **status**: `cabinet` (on the shelf — the default, and what
+anything logged before the field existed reads as), `finished` (drunk and gone, notes
+kept), or `tasted` (tried at a bar or a friend's, never owned). The cabinet and coffee
+pages open on the shelf, with a status filter beside the notes filter. Pairing's "what
+to pour" and the hub's tonight's picks pour only from the shelf; "bottles like this",
+the menu tips, and your palate draw on everything you've logged.
+
 ## Pairing (`#/pair`)
 
 Its own section beside the cabinet and the coffee bar. Say what you're having — a dish

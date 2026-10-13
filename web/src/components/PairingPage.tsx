@@ -4,8 +4,9 @@
  * what should I pour?" Two layers:
  *
  *   1. Structured, instant, offline (lib/pairing): the dish or cigar resolves
- *      to a target flavor profile + type affinities; the cabinet is ranked
- *      against it, and menu-ordering tips are anchored to bottles you love.
+ *      to a target flavor profile + type affinities; what's on the shelf is
+ *      ranked against it, and menu-ordering tips are anchored to bottles you
+ *      love — finished ones and bar pours included, since you'd order those.
  *   2. Narrated (POST /pairings → Haiku) over the real cabinet. Requested only
  *      when you submit a pairing — never on load, never while typing, and not
  *      again when the "read as" category is adjusted afterwards. Needs a
@@ -14,7 +15,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Bottle, CigarStrength, PairingRequest } from '../lib/types'
-import { PAIRING_LIMITS, familyOf } from '../lib/types'
+import { PAIRING_LIMITS, familyOf, onShelf } from '../lib/types'
 import { getApi } from '../lib/api'
 import { capitalize } from '../lib/recommend'
 import {
@@ -122,6 +123,9 @@ export default function PairingPage({ onRequireAuth }: Props) {
     () => (all ?? []).filter((b) => familyOf(b.type) === 'alcohol'),
     [all],
   )
+  // What can be poured tonight (rankPairings applies the same rule). Menu
+  // tips and the narration's links keep the whole cabinet.
+  const shelf = useMemo(() => cabinet.filter(onShelf), [cabinet])
   // Loaded or failed: either way the form can go — menu tips need no
   // cabinet, and the narration reasons over the server's copy.
   const cabinetSettled = all !== null || loadError !== null
@@ -359,10 +363,10 @@ export default function PairingPage({ onRequireAuth }: Props) {
                     Couldn’t load your cabinet, so there’s nothing to rank —
                     the menu tips below still apply.
                   </p>
-                ) : cabinet.length === 0 ? (
+                ) : shelf.length === 0 ? (
                   <p className="text-muted text-sm">
-                    Your cabinet is empty — log a few bottles and they’ll be
-                    ranked here.
+                    Nothing on the shelf to pour — log a bottle you own and
+                    it’ll be ranked here.
                   </p>
                 ) : (
                   <ol className="flex flex-col gap-2.5">

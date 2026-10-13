@@ -1,7 +1,8 @@
 /**
  * Bottle detail (route `#/bottles/:id`) — serves both families. Lays out:
  *   - bottle meta (producer, then one line: type · region · style-or-roast ·
- *     ABV · price) with a single-row rating + note-count + edit cluster,
+ *     ABV · price, and "finished" / "tasted elsewhere" when it isn't on the
+ *     shelf) with a single-row rating + note-count + edit cluster,
  *   - the D3 radar of its averaged flavor profile,
  *   - the "like this" recommendations panel (with cross-family picks),
  *   - the tasting-notes list (coffee wears aroma / flavor / aftertaste, shows
@@ -10,7 +11,13 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { BottleDetail as BottleDetailData, TastingNote } from '../lib/types'
-import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf, isCoffee } from '../lib/types'
+import {
+  EMPTY_FLAVOR,
+  FLAVOR_AXES,
+  STATUS_LABELS,
+  familyOf,
+  isCoffee,
+} from '../lib/types'
 import { getApi } from '../lib/api'
 import { href, navigate } from '../lib/router'
 import { useAuth } from './AuthContext'
@@ -154,6 +161,10 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
                 ? [bottle.roast && `${bottle.roast} roast`, bottle.process]
                 : [bottle.style, `${bottle.abv}% ABV`]),
               bottle.price != null && `$${bottle.price}`,
+              bottle.status !== 'cabinet' && {
+                text: STATUS_LABELS[bottle.status],
+                tone: 'warm',
+              },
             ]}
           />
         </div>

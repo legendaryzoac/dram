@@ -10,7 +10,12 @@
  * list.
  */
 import { useEffect, useState } from 'react'
-import type { BeverageFamily, Bottle, NewBottleInput } from '../lib/types'
+import type {
+  BeverageFamily,
+  Bottle,
+  BottleStatus,
+  NewBottleInput,
+} from '../lib/types'
 import {
   BOTTLE_TYPES,
   ROAST_LEVELS,
@@ -27,10 +32,12 @@ import { useAuth } from './AuthContext'
 import {
   Field,
   Panel,
+  Segmented,
   buttonClass,
   dangerButtonClass,
   ghostButtonClass,
   inputClass,
+  labelClass,
   Notice,
   Spinner,
 } from './ui'
@@ -40,6 +47,31 @@ interface Props {
   editId?: string
   /** Which tab launched the add form; picks the default type. */
   initialFamily?: BeverageFamily
+}
+
+/** The status pill. Short labels so all three fit one pill on a phone; the
+ *  line under it says what the chosen one means. */
+const STATUS_OPTIONS = [
+  { value: 'cabinet', label: 'shelf' },
+  { value: 'finished', label: 'finished' },
+  { value: 'tasted', label: 'tasted' },
+] as const satisfies ReadonlyArray<{ value: BottleStatus; label: string }>
+
+function statusHelp(status: BottleStatus, coffee: boolean): string {
+  switch (status) {
+    case 'cabinet':
+      return coffee
+        ? 'In the coffee bar, ready to brew.'
+        : 'In the cabinet, ready to pour.'
+    case 'finished':
+      return coffee
+        ? 'Used up. Its notes stay; it won’t be picked again.'
+        : 'Drunk and gone. Its notes stay; it won’t be poured again.'
+    case 'tasted':
+      return coffee
+        ? 'Tried somewhere else, never bought. Its notes stay; it won’t be picked.'
+        : 'Tried somewhere else, never owned. Its notes stay; it won’t be poured.'
+  }
 }
 
 export default function BottleForm({ editId, initialFamily }: Props) {
@@ -58,6 +90,7 @@ export default function BottleForm({ editId, initialFamily }: Props) {
   const [process, setProcess] = useState('')
   const [abv, setAbv] = useState('43')
   const [price, setPrice] = useState('')
+  const [status, setStatus] = useState<BottleStatus>('cabinet')
   const [loading, setLoading] = useState(editing)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +111,7 @@ export default function BottleForm({ editId, initialFamily }: Props) {
     setProcess(b.process ?? '')
     setAbv(String(b.abv))
     setPrice(b.price == null ? '' : String(b.price))
+    setStatus(b.status)
   }
 
   // Prefill when editing.
@@ -123,6 +157,7 @@ export default function BottleForm({ editId, initialFamily }: Props) {
       // Coffee has no meaningful ABV; store an honest 0.
       abv: coffee ? 0 : Number(abv),
       price: price.trim() === '' ? null : Number(price),
+      status,
       grape: perType(isWine(type), grape),
       style: perType(isSpirit(type), style),
       roast: perType(coffee, roast),
@@ -178,6 +213,18 @@ export default function BottleForm({ editId, initialFamily }: Props) {
               : 'Add a bottle'}
         </h1>
         <form onSubmit={submit} className="flex flex-col gap-4">
+          {/* First, because it frames the entry: a bottle you own, one you
+              finished, or one you tried at a bar and want to remember. */}
+          <div className="flex flex-col gap-1.5">
+            <span className={labelClass}>Status</span>
+            <Segmented
+              label="Status"
+              value={status}
+              onChange={setStatus}
+              options={STATUS_OPTIONS}
+            />
+            <p className="text-muted text-xs">{statusHelp(status, coffee)}</p>
+          </div>
           <Field label="Name">
             <input
               className={inputClass}
@@ -359,6 +406,12 @@ export default function BottleForm({ editId, initialFamily }: Props) {
                     `Its ${noteCount} ${noteCount === 1 ? 'note goes' : 'notes go'} with it. `}
                   This can’t be undone.
                 </p>
+                {status === 'cabinet' && (
+                  <p className="text-muted mt-2 text-xs">
+                    Finished it? Set its status to finished instead and the notes
+                    stay.
+                  </p>
+                )}
                 <div className="mt-3 flex gap-3">
                   <button
                     type="button"
