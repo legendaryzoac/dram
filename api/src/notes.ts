@@ -5,7 +5,14 @@ import type {
 } from 'aws-lambda'
 import { embedText } from './bedrock'
 import { json } from './http'
-import { getBottleItem, loadNotes, noteSk, putNote, toNote } from './store'
+import {
+  getBottleItem,
+  listNoteItems,
+  loadNotes,
+  noteSk,
+  putNote,
+  toNote,
+} from './store'
 import {
   CORE_FLAVOR_AXES,
   FLAVOR_AXES,
@@ -135,6 +142,18 @@ async function embedNote(parsed: ParsedNote): Promise<number[] | undefined> {
  * Computes and stores a Titan embedding of nose+palate+finish synchronously,
  * and records the caller as the note's author for later edit checks.
  */
+/**
+ * GET /notes — every tasting note in the corpus, newest first: the hub's one
+ * read for the drinker's whole history (a public read, like the bottles).
+ */
+export async function handleListNotes(
+  origin?: string,
+): Promise<APIGatewayProxyResultV2> {
+  const items = await listNoteItems()
+  const all = items.map(toNote).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  return json(200, all, origin)
+}
+
 export async function handleCreateNote(
   bottleId: string,
   event: APIGatewayProxyEventV2,

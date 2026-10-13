@@ -216,6 +216,8 @@ export class SiteStack extends Stack {
       [apigwv2.HttpMethod.GET, '/bottles'],
       [apigwv2.HttpMethod.GET, '/bottles/{id}'],
       [apigwv2.HttpMethod.GET, '/bottles/{id}/recommendations'],
+      // Every note at once — the hub's history in one read instead of one per bottle.
+      [apigwv2.HttpMethod.GET, '/notes'],
     ] as const) {
       httpApi.addRoutes({ path: route, methods: [method], integration })
     }

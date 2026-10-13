@@ -10,7 +10,7 @@ import {
   handleUpdateBottle,
 } from './bottles'
 import { json, noContent } from './http'
-import { handleCreateNote, handleUpdateNote } from './notes'
+import { handleCreateNote, handleListNotes, handleUpdateNote } from './notes'
 import { handlePairing } from './pairings'
 import { handleRecommendations } from './recommendations'
 
@@ -48,6 +48,7 @@ export async function handler(
     // --- public reads ---
     if (routeKey === 'GET /health') return json(200, { ok: true }, origin)
     if (routeKey === 'GET /bottles') return await handleListBottles(origin)
+    if (routeKey === 'GET /notes') return await handleListNotes(origin)
     if (routeKey === 'GET /bottles/{id}' && id) {
       return await handleGetBottle(id, origin)
     }

@@ -124,6 +124,41 @@ export async function listBottleItems(): Promise<BottleItem[]> {
   return items
 }
 
+/**
+ * Every tasting note in the corpus: one Scan filtered to note rows. The hub
+ * reads the drinker's whole history in one call (GET /notes) instead of one
+ * per bottle, and the bottle list joins notes to bottles from this one read.
+ */
+export async function listNoteItems(): Promise<NoteItem[]> {
+  const items: NoteItem[] = []
+  let lastKey: Record<string, unknown> | undefined
+  do {
+    const res = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: '#t = :note',
+        ExpressionAttributeNames: { '#t': 'type' },
+        ExpressionAttributeValues: { ':note': 'note' },
+        ExclusiveStartKey: lastKey,
+      }),
+    )
+    items.push(...((res.Items ?? []) as NoteItem[]))
+    lastKey = res.LastEvaluatedKey
+  } while (lastKey)
+  return items
+}
+
+/** Notes keyed by the bottle they belong to. */
+export function groupNotes(items: NoteItem[]): Map<string, NoteItem[]> {
+  const byBottle = new Map<string, NoteItem[]>()
+  for (const n of items) {
+    const arr = byBottle.get(n.bottleId)
+    if (arr) arr.push(n)
+    else byBottle.set(n.bottleId, [n])
+  }
+  return byBottle
+}
+
 /** A single bottle META row plus all of its notes, via one PK Query. */
 export async function loadBottleWithNotes(
   id: string,

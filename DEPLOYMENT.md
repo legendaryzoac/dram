@@ -132,6 +132,9 @@ page shows "the narrated take isn't available right now", and the structured pic
 stand. Pairing narration reuses the Haiku inference profile already granted in step 2,
 so there is nothing new to enable in Bedrock.
 
+`GET /notes` (every tasting note at once, for the hub) is the same: until the deploy the
+web falls back to one read per bottle, a few at a time.
+
 **New bottle fields** go API-first too. The bottle `status` (cabinet / finished /
 tasted) is additive — every GET fills `cabinet` in for rows written before it existed —
 but a Lambda built before the field would silently drop it on write, so the web that

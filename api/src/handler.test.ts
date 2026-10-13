@@ -13,6 +13,7 @@ vi.mock('./store', async () => {
   return {
     ...actual,
     listBottleItems: vi.fn(async () => [...bottles.values()]),
+    listNoteItems: vi.fn(async () => [...notes.values()].flat()),
     loadNotes: vi.fn(async (id: string) => notes.get(id) ?? []),
     loadBottleWithNotes: vi.fn(async (id: string) => {
       const b = bottles.get(id)
@@ -570,6 +571,51 @@ describe('handler routing', () => {
     const names = recs.body.recommendations.map((r: { name: string }) => r.name)
     expect(names).toContain('Bar Ardbeg')
     expect(names).toContain('Empty Laphroaig')
+  })
+
+  it('GET /notes returns every note across bottles, newest first, with its bottleId', async () => {
+    const ids: string[] = []
+    for (const name of ['One', 'Two']) {
+      const made = parse(
+        await handler(
+          makeEvent('POST /bottles', {
+            authed: true,
+            body: { name, producer: 'p', region: 'r', type: 'rye', abv: 45 },
+          }),
+        ),
+      )
+      ids.push(made.body.id)
+    }
+    expect(parse(await handler(makeEvent('GET /notes'))).body).toEqual([])
+    const note = (rating: number) => ({
+      nose: 'n',
+      palate: 'p',
+      finish: 'f',
+      rating,
+      flavorTags: { sweet: 1, fruity: 1, floral: 1, acidity: 1, body: 1, oaky: 1, smoky: 1, spicy: 1 },
+    })
+    for (const [i, rating] of [7, 8, 9].entries()) {
+      await handler(
+        makeEvent('POST /bottles/{id}/notes', {
+          authed: true,
+          pathParameters: { id: ids[i % 2] },
+          body: note(rating),
+        }),
+      )
+    }
+    const all = parse(await handler(makeEvent('GET /notes')))
+    expect(all.status).toBe(200)
+    expect(all.body).toHaveLength(3)
+    expect(all.body.map((n: { bottleId: string }) => n.bottleId).sort()).toEqual(
+      [ids[0], ids[0], ids[1]].sort(),
+    )
+    const stamps = all.body.map((n: { createdAt: string }) => n.createdAt)
+    expect([...stamps].sort().reverse()).toEqual(stamps)
+    // The list still carries the per-bottle aggregates from the same rows.
+    const list = parse(await handler(makeEvent('GET /bottles')))
+    const one = list.body.find((b: { id: string }) => b.id === ids[0])
+    expect(one.noteCount).toBe(2)
+    expect(one.avgRating).toBe(8)
   })
 
   it('DELETE /bottles/{id} with auth -> 204', async () => {

@@ -7,7 +7,9 @@ import { json, noContent } from './http'
 import {
   deleteBottleAndNotes,
   getBottleItem,
+  groupNotes,
   listBottleItems,
+  listNoteItems,
   loadBottleWithNotes,
   loadNotes,
   putBottle,
@@ -51,13 +53,11 @@ function parseBody(event: APIGatewayProxyEventV2): unknown {
 export async function handleListBottles(
   origin?: string,
 ): Promise<APIGatewayProxyResultV2> {
-  const items = await listBottleItems()
-  // Aggregate note-derived fields per bottle. Sequential is fine at this scale.
-  const bottles = []
-  for (const item of items) {
-    const notes = await loadNotes(item.id)
-    bottles.push(toBottle(item, notes))
-  }
+  // Two scans — the bottles, then every note — joined here: two round trips
+  // to DynamoDB however big the cabinet, instead of one per bottle.
+  const [items, noteItems] = await Promise.all([listBottleItems(), listNoteItems()])
+  const notesByBottle = groupNotes(noteItems)
+  const bottles = items.map((item) => toBottle(item, notesByBottle.get(item.id) ?? []))
   // Newest first.
   bottles.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
   return json(200, bottles, origin)
