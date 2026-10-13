@@ -780,6 +780,13 @@ export function makeMockApi(): DramApi {
       )
     },
 
+    async listNotes() {
+      await wait()
+      return [...store.notes.values()]
+        .flat()
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    },
+
     async getBottle(id) {
       await wait()
       const bottle = store.bottles.get(id)

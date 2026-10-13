@@ -31,6 +31,8 @@ import { makeMockApi } from './mockApi'
 
 export interface DramApi {
   listBottles(): Promise<Bottle[]>
+  /** Every tasting note in the corpus, newest first (GET /notes). */
+  listNotes(): Promise<TastingNote[]>
   getBottle(id: string): Promise<BottleDetail>
   createBottle(input: NewBottleInput, token: string): Promise<Bottle>
   updateBottle(
@@ -115,6 +117,9 @@ export function makeRealApi(baseUrl = API_BASE_URL): DramApi {
     async listBottles() {
       const list = await parse<WireBottle[]>(await fetch(url('/bottles')))
       return list.map(withStatus)
+    },
+    async listNotes() {
+      return parse<TastingNote[]>(await fetch(url('/notes')))
     },
     async getBottle(id) {
       const detail = await parse<Omit<BottleDetail, 'bottle'> & { bottle: WireBottle }>(

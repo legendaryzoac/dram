@@ -343,3 +343,14 @@ describe('mock API — bottle status', () => {
     expect(mixed.narration).toMatch(/\*\*Lagavulin 16\*\*/)
   })
 })
+
+describe('mock API — listNotes', () => {
+  it('returns every seeded note, newest first, matching the bottles’ counts', async () => {
+    const api = makeMockApi()
+    const [bottles, notes] = await Promise.all([api.listBottles(), api.listNotes()])
+    expect(notes.length).toBe(bottles.reduce((n, b) => n + b.noteCount, 0))
+    const stamps = notes.map((n) => n.createdAt)
+    expect([...stamps].sort().reverse()).toEqual(stamps)
+    for (const n of notes) expect(bottles.some((b) => b.id === n.bottleId)).toBe(true)
+  })
+})

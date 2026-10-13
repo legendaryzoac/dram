@@ -6,8 +6,66 @@
  * Note on "your" notes: dram is a personal, invite-only log — notes carry no
  * author field, so the hub treats the whole corpus as the drinker's history.
  */
-import type { BottleDetail, FlavorTags, TastingNote } from './types'
+import type { Bottle, BottleDetail, FlavorTags, TastingNote } from './types'
 import { EMPTY_FLAVOR, FLAVOR_AXES } from './types'
+import { ApiError, type DramApi } from './api'
+
+/** How many per-bottle reads the fallback keeps in flight. A Lambda's account
+ *  concurrency can be as low as 10; a request per bottle, all at once, turns a
+ *  big cabinet into a 503. */
+export const DETAIL_CONCURRENCY = 4
+
+/**
+ * The whole corpus — every bottle with its notes — in two reads: the bottle
+ * list and GET /notes. An API from before that route answers 404, and then it
+ * is one read per bottle, a few at a time, never the lot in parallel.
+ */
+export async function loadCorpus(api: DramApi): Promise<BottleDetail[]> {
+  const [bottles, notes] = await Promise.all([
+    api.listBottles(),
+    api.listNotes().catch((e: unknown) => {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }),
+  ])
+  if (notes) return detailsFrom(bottles, notes)
+  return mapLimit(bottles, DETAIL_CONCURRENCY, (b) => api.getBottle(b.id))
+}
+
+/** Join every note to its bottle, newest first within each. A note whose
+ *  bottle is gone is dropped. */
+export function detailsFrom(bottles: Bottle[], notes: TastingNote[]): BottleDetail[] {
+  const byBottle = new Map<string, TastingNote[]>()
+  for (const n of notes) {
+    const arr = byBottle.get(n.bottleId)
+    if (arr) arr.push(n)
+    else byBottle.set(n.bottleId, [n])
+  }
+  return bottles.map((bottle) => ({
+    bottle,
+    notes: (byBottle.get(bottle.id) ?? []).sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    ),
+  }))
+}
+
+/** `Promise.all` with at most `limit` calls in flight; results keep order. */
+export async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length)
+  let next = 0
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await fn(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
+}
 
 /** A tasting note joined with the bottle it belongs to, for display. */
 export interface HubNote extends TastingNote {

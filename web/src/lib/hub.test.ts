@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest'
 import type { BottleDetail, FlavorTags, TastingNote } from './types'
 import { EMPTY_FLAVOR } from './types'
 import {
+  DETAIL_CONCURRENCY,
   averageRating,
   collectNotes,
+  detailsFrom,
   gearStats,
+  loadCorpus,
+  mapLimit,
   tasteProfile,
   topAxes,
 } from './hub'
+import { ApiError, type DramApi } from './api'
 import { rankByTasteProfile } from './recommend'
 
 let seq = 0
@@ -153,5 +158,92 @@ describe('rankByTasteProfile', () => {
     expect(r.score).toBeGreaterThanOrEqual(0)
     expect(r.score).toBeLessThanOrEqual(1)
     expect(r.reason).toMatch(/smoky|body|palate/i)
+  })
+})
+
+describe('detailsFrom', () => {
+  it('joins notes to bottles, newest first, and drops orphans', () => {
+    const a = detail('a', 'A', 'scotch', [])
+    const b = detail('b', 'B', 'scotch', [])
+    const out = detailsFrom(
+      [a.bottle, b.bottle],
+      [
+        note({ id: 'old', bottleId: 'a', createdAt: '2026-01-01T00:00:00.000Z' }),
+        note({ id: 'orphan', bottleId: 'gone' }),
+        note({ id: 'new', bottleId: 'a', createdAt: '2026-02-01T00:00:00.000Z' }),
+      ],
+    )
+    expect(out.map((d) => d.bottle.id)).toEqual(['a', 'b'])
+    expect(out[0].notes.map((n) => n.id)).toEqual(['new', 'old'])
+    expect(out[1].notes).toEqual([])
+  })
+})
+
+describe('mapLimit', () => {
+  it('keeps order and never exceeds the limit in flight', async () => {
+    let inFlight = 0
+    let peak = 0
+    const out = await mapLimit([5, 1, 4, 2, 3, 6, 7], 3, async (n) => {
+      inFlight += 1
+      peak = Math.max(peak, inFlight)
+      await new Promise((r) => setTimeout(r, n))
+      inFlight -= 1
+      return n * 10
+    })
+    expect(out).toEqual([50, 10, 40, 20, 30, 60, 70])
+    expect(peak).toBe(3)
+  })
+})
+
+describe('loadCorpus', () => {
+  const bottles = [detail('a', 'A', 'scotch', []).bottle, detail('b', 'B', 'coffee', []).bottle]
+  function fakeApi(over: Partial<DramApi>): DramApi & { getBottleCalls: number; peak: number } {
+    let inFlight = 0
+    const api = {
+      getBottleCalls: 0,
+      peak: 0,
+      listBottles: async () => bottles,
+      listNotes: async () => [note({ bottleId: 'b' })],
+      getBottle: async (id: string) => {
+        api.getBottleCalls += 1
+        inFlight += 1
+        api.peak = Math.max(api.peak, inFlight)
+        await new Promise((r) => setTimeout(r, 2))
+        inFlight -= 1
+        return { bottle: bottles.find((b) => b.id === id) ?? { ...bottles[0], id }, notes: [] }
+      },
+      ...over,
+    } as DramApi & { getBottleCalls: number; peak: number }
+    return api
+  }
+
+  it('reads bottles and notes, never a bottle at a time', async () => {
+    const api = fakeApi({})
+    const out = await loadCorpus(api)
+    expect(out.map((d) => d.notes.length)).toEqual([0, 1])
+    expect(api.getBottleCalls).toBe(0)
+  })
+
+  it('falls back to a few reads at a time when GET /notes is not deployed', async () => {
+    const api = fakeApi({
+      listBottles: async () => Array.from({ length: 9 }, (_, i) => detail(`b${i}`, 'B', 'rye', []).bottle),
+      listNotes: async () => {
+        throw new ApiError(404, 'Not Found')
+      },
+    })
+    const out = await loadCorpus(api)
+    expect(out).toHaveLength(9)
+    expect(api.getBottleCalls).toBe(9)
+    expect(api.peak).toBeLessThanOrEqual(DETAIL_CONCURRENCY)
+    expect(api.peak).toBeGreaterThan(1)
+  })
+
+  it('surfaces any other failure', async () => {
+    const api = fakeApi({
+      listNotes: async () => {
+        throw new ApiError(503, 'Service Unavailable')
+      },
+    })
+    await expect(loadCorpus(api)).rejects.toMatchObject({ status: 503 })
   })
 })

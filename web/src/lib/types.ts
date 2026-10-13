@@ -268,6 +268,9 @@ export interface PairingNarration {
   degraded: boolean
 }
 
+/** Response shape for GET /notes: every note in the corpus, newest first, as
+ *  `TastingNote[]` — the hub's one read for the whole tasting history. */
+
 /** Response shape for GET /bottles/{id}. */
 export interface BottleDetail {
   bottle: Bottle

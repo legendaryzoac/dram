@@ -21,6 +21,7 @@ import {
   averageRating,
   collectNotes,
   gearStats,
+  loadCorpus,
   tasteProfile,
   topAxes,
   type HubNote,
@@ -49,15 +50,12 @@ export default function AccountPage({ onRequireAuth }: Props) {
   const [details, setDetails] = useState<BottleDetail[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Load the full corpus (bottle + notes per bottle). Personal scale: a few
-  // dozen parallel public reads. Skipped while signed out; re-runs on sign-in.
+  // Load the full corpus — two public reads, see loadCorpus. Skipped while
+  // signed out; re-runs on sign-in.
   useEffect(() => {
     if (!token) return
     let live = true
-    const api = getApi()
-    api
-      .listBottles()
-      .then((bottles) => Promise.all(bottles.map((b) => api.getBottle(b.id))))
+    loadCorpus(getApi())
       .then((d) => {
         if (live) {
           setDetails(d)
