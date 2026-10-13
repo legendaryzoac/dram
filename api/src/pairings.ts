@@ -132,10 +132,14 @@ function truncate(s: string, max: number): string {
   return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`
 }
 
-/** The pairing candidates: coffee is logged beside the cabinet but is never
- *  what gets poured with the steak or the cigar. */
+/** The pairing candidates: what can actually be poured tonight. Coffee is
+ *  logged beside the cabinet but never pairs, and a bottle that is finished
+ *  or was only tasted elsewhere isn't on the shelf. */
 export function cabinetOnly(corpus: CorpusBottle[]): CorpusBottle[] {
-  return corpus.filter((b) => familyOf(b.item.type_) === 'alcohol')
+  return corpus.filter(
+    (b) =>
+      familyOf(b.item.type_) === 'alcohol' && (b.item.status ?? 'cabinet') === 'cabinet',
+  )
 }
 
 /**

@@ -51,6 +51,16 @@ export function familyOf(type: string): BeverageFamily {
   return type.trim().toLowerCase() === 'coffee' ? 'coffee' : 'alcohol'
 }
 
+/**
+ * Where a bottle stands with the drinker. `cabinet` is on the shelf — the
+ * default, and what every bottle logged before this field existed reads as;
+ * `finished` was owned and is gone, its notes kept; `tasted` was tried
+ * somewhere else and never owned. Pairing and tonight's picks pour only from
+ * the cabinet; recommendations and the taste model use all three.
+ */
+export type BottleStatus = 'cabinet' | 'finished' | 'tasted'
+export const BOTTLE_STATUSES = ['cabinet', 'finished', 'tasted'] as const
+
 /** A bottle as returned by the API. Last 3 fields are server-computed on GET. */
 export interface Bottle {
   id: string
@@ -60,6 +70,7 @@ export interface Bottle {
   type: string
   abv: number
   price: number | null
+  status: BottleStatus
   /** Prominent grape variety, mainly for wines (optional, additive). */
   grape?: string
   /** Expression/style, mainly for spirits — reposado, VSOP, navy strength… */
@@ -188,6 +199,8 @@ export interface BottleItem {
   type_: string // `type` clashes with the discriminator; stored as type_
   abv: number
   price: number | null
+  /** Absent on rows written before the field existed: read as `cabinet`. */
+  status?: BottleStatus
   grape?: string // optional grape variety (wines)
   style?: string // optional expression/style (spirits)
   roast?: string // optional roast level (coffee)

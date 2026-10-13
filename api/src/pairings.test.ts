@@ -3,7 +3,13 @@ import type { BottleItem, NoteItem } from './types'
 import type { CorpusBottle } from './recommender'
 import { cabinetLines, cabinetOnly, describeOccasion, parsePairingBody } from './pairings'
 
-function bottle(id: string, name: string, type: string, style?: string): BottleItem {
+function bottle(
+  id: string,
+  name: string,
+  type: string,
+  style?: string,
+  status?: BottleItem['status'],
+): BottleItem {
   return {
     pk: `BOTTLE#${id}`,
     sk: 'META',
@@ -16,6 +22,7 @@ function bottle(id: string, name: string, type: string, style?: string): BottleI
     abv: 43,
     price: null,
     style,
+    status,
     createdAt: '2026-01-01T00:00:00.000Z',
   }
 }
@@ -97,6 +104,19 @@ describe('cabinetLines', () => {
   it('cabinetOnly drops coffee', () => {
     expect(cabinetOnly(corpus).map((b) => b.item.name)).not.toContain('Sumatra')
     expect(cabinetOnly(corpus)).toHaveLength(4)
+  })
+
+  it('cabinetOnly keeps only what is on the shelf', () => {
+    const shelf: CorpusBottle[] = [
+      { item: bottle('a', 'On the shelf', 'bourbon'), notes: [] },
+      { item: bottle('b', 'Explicitly on the shelf', 'bourbon', undefined, 'cabinet'), notes: [] },
+      { item: bottle('c', 'Gone', 'bourbon', undefined, 'finished'), notes: [] },
+      { item: bottle('d', 'Tried at a bar', 'bourbon', undefined, 'tasted'), notes: [] },
+    ]
+    expect(cabinetOnly(shelf).map((b) => b.item.name)).toEqual([
+      'On the shelf',
+      'Explicitly on the shelf',
+    ])
   })
 
   it('lists best-rated first (ties by name), unrated last', () => {

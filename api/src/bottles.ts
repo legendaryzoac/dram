@@ -14,7 +14,12 @@ import {
   toBottle,
   toNote,
 } from './store'
-import { normalizeRoast, type BottleItem } from './types'
+import {
+  BOTTLE_STATUSES,
+  normalizeRoast,
+  type BottleItem,
+  type BottleStatus,
+} from './types'
 
 const str = (v: unknown, max: number): string | undefined =>
   typeof v === 'string' && v.trim().length > 0 && v.length <= max
@@ -23,6 +28,12 @@ const str = (v: unknown, max: number): string | undefined =>
 
 const num = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined
+
+/** A bottle status, or undefined for anything that isn't one. */
+const status = (v: unknown): BottleStatus | undefined =>
+  typeof v === 'string' && (BOTTLE_STATUSES as readonly string[]).includes(v)
+    ? (v as BottleStatus)
+    : undefined
 
 function parseBody(event: APIGatewayProxyEventV2): unknown {
   const raw = event.isBase64Encoded
@@ -97,6 +108,12 @@ export async function handleCreateBottle(
   if (price !== null && (price === undefined || price < 0)) {
     return json(400, { error: 'price must be a non-negative number or null' }, origin)
   }
+  // Where it stands: defaults to the cabinet; anything else must be a known
+  // status (a stale client that doesn't send one still gets the default).
+  const bottleStatus = r.status === undefined ? 'cabinet' : status(r.status)
+  if (!bottleStatus) {
+    return json(400, { error: 'status must be cabinet, finished, or tasted' }, origin)
+  }
   // Optional per-type fields, additive. Undefined when absent/blank/null so
   // DDB stores nothing. Roast is canonicalized ("Light" -> "light").
   const grape = r.grape === undefined ? undefined : str(r.grape, 120)
@@ -117,6 +134,7 @@ export async function handleCreateBottle(
     type_: type,
     abv,
     price,
+    status: bottleStatus,
     grape,
     style,
     roast,
@@ -181,6 +199,11 @@ export async function handleUpdateBottle(
       }
       next.price = v
     }
+  }
+  if (r.status !== undefined) {
+    const v = status(r.status)
+    if (!v) return json(400, { error: 'status must be cabinet, finished, or tasted' }, origin)
+    next.status = v
   }
   // Per-type optional fields: empty/blank or null clears; otherwise the
   // trimmed value is set.

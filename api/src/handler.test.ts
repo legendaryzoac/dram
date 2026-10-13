@@ -481,6 +481,97 @@ describe('handler routing', () => {
     expect(cleared.body.grape).toBeUndefined()
   })
 
+  it('stores a bottle status, defaults it to the cabinet, and rejects junk', async () => {
+    const plain = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: { name: 'Shelf', producer: 'p', region: 'r', type: 'bourbon', abv: 45 },
+        }),
+      ),
+    )
+    expect(plain.body.status).toBe('cabinet')
+
+    const tasted = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: { name: 'Bar pour', producer: 'p', region: 'r', type: 'scotch', abv: 46, status: 'tasted' },
+        }),
+      ),
+    )
+    expect(tasted.body.status).toBe('tasted')
+
+    const bad = parse(
+      await handler(
+        makeEvent('POST /bottles', {
+          authed: true,
+          body: { name: 'x', producer: 'p', region: 'r', type: 'rye', abv: 50, status: 'lost' },
+        }),
+      ),
+    )
+    expect(bad.status).toBe(400)
+
+    const finished = parse(
+      await handler(
+        makeEvent('PUT /bottles/{id}', {
+          authed: true,
+          pathParameters: { id: plain.body.id },
+          body: { status: 'finished' },
+        }),
+      ),
+    )
+    expect(finished.body.status).toBe('finished')
+    const badUpdate = parse(
+      await handler(
+        makeEvent('PUT /bottles/{id}', {
+          authed: true,
+          pathParameters: { id: plain.body.id },
+          body: { status: null },
+        }),
+      ),
+    )
+    expect(badUpdate.status).toBe(400)
+
+    // A pre-status row reads as cabinet on every GET.
+    const list = parse(await handler(makeEvent('GET /bottles')))
+    for (const b of list.body) expect(['cabinet', 'finished', 'tasted']).toContain(b.status)
+  })
+
+  it('pairing context pours only from the cabinet; recommendations still see everything', async () => {
+    const ids: Record<string, string> = {}
+    for (const body of [
+      { name: 'Lagavulin 16', producer: 'p', region: 'Islay', type: 'scotch', abv: 43 },
+      { name: 'Bar Ardbeg', producer: 'p', region: 'Islay', type: 'scotch', abv: 46, status: 'tasted' },
+      { name: 'Empty Laphroaig', producer: 'p', region: 'Islay', type: 'scotch', abv: 40, status: 'finished' },
+    ]) {
+      const made = parse(await handler(makeEvent('POST /bottles', { authed: true, body })))
+      ids[body.name] = made.body.id
+    }
+    vi.mocked(narratePairing).mockResolvedValueOnce('Pour the Lagavulin 16.')
+    await handler(
+      makeEvent('POST /pairings', {
+        authed: true,
+        body: { kind: 'food', text: 'oysters', candidateIds: [ids['Bar Ardbeg'], ids['Lagavulin 16']] },
+      }),
+    )
+    const input = vi.mocked(narratePairing).mock.calls.at(-1)![0]
+    expect(input.cabinet).toHaveLength(1)
+    expect(input.cabinet[0]).toMatch(/^Lagavulin 16/)
+    expect(input.shortlist).toEqual(['Lagavulin 16'])
+
+    const recs = parse(
+      await handler(
+        makeEvent('GET /bottles/{id}/recommendations', {
+          pathParameters: { id: ids['Lagavulin 16'] },
+        }),
+      ),
+    )
+    const names = recs.body.recommendations.map((r: { name: string }) => r.name)
+    expect(names).toContain('Bar Ardbeg')
+    expect(names).toContain('Empty Laphroaig')
+  })
+
   it('DELETE /bottles/{id} with auth -> 204', async () => {
     const created = parse(
       await handler(

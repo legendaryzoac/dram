@@ -64,6 +64,7 @@ export function toBottle(item: BottleItem, notes: NoteItem[]): Bottle {
     type: item.type_,
     abv: item.abv,
     price: item.price,
+    status: item.status ?? 'cabinet',
     grape: item.grape,
     style: item.style,
     // Normalized on read too, so items stored before canonicalization
