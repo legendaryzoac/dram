@@ -269,27 +269,28 @@ export default function BottleList({ family, onRequireAuth }: Props) {
           <button
             key={b.id}
             onClick={() => navigate(href.detail(b.id))}
-            className="border-line bg-panel/60 hover:border-accent/60 hover:bg-panel group flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors"
+            className="border-line bg-panel/60 hover:border-accent/60 hover:bg-panel group flex gap-3 rounded-xl border p-4 text-left transition-colors"
           >
-            <div className="flex items-start justify-between gap-3">
+            {/* Left: what it is. Right: how it rates — the rating up top with
+                the note count at the foot, or "no notes yet" on its own,
+                centred on the card since it is all that side has to say. */}
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
               <div className="min-w-0">
                 <h2 className="font-display text-fg group-hover:text-accent truncate text-base font-semibold transition-colors">
                   {b.name}
                 </h2>
                 <p className="text-muted truncate text-sm">{b.producer}</p>
               </div>
-              <RatingBadge value={b.avgRating} />
-            </div>
-            {b.grape && (
-              <span className="font-display text-warm -mt-1 text-sm font-semibold">
-                {b.grape}
-              </span>
-            )}
-            <div className="mt-auto flex items-baseline justify-between gap-3">
+              {b.grape && (
+                <span className="font-display text-warm -mt-1 text-sm font-semibold">
+                  {b.grape}
+                </span>
+              )}
               {/* One quiet line: type (the lead) · region · strength, and a
                   warm "finished" / "tasted elsewhere" when it isn't on the
                   shelf. Style, process and price belong to the detail page. */}
               <Meta
+                className="mt-auto"
                 items={[
                   { text: b.type, tone: 'lead' },
                   b.region,
@@ -297,9 +298,16 @@ export default function BottleList({ family, onRequireAuth }: Props) {
                   b.status !== 'cabinet' && { text: STATUS_LABELS[b.status], tone: 'warm' },
                 ]}
               />
+            </div>
+            <div
+              className={`flex shrink-0 flex-col items-end ${
+                b.noteCount > 0 ? 'justify-between' : 'justify-center'
+              }`}
+            >
+              <RatingBadge value={b.avgRating} />
               {/* The badge already says "no notes yet" — no "0 notes" echo. */}
               {b.noteCount > 0 && (
-                <span className="text-muted shrink-0 font-mono text-xs">
+                <span className="text-muted font-mono text-xs">
                   {b.noteCount} {b.noteCount === 1 ? 'note' : 'notes'}
                 </span>
               )}
