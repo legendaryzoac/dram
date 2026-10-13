@@ -57,10 +57,15 @@ export function SectionTitle({
   children: ReactNode
   hint?: string
 }) {
+  // Title and hint each stay on one line. When the two won't share a line
+  // the hint drops under the title whole, as a subtitle, rather than either
+  // of them breaking in the middle.
   return (
-    <div className="mb-3 flex items-baseline justify-between gap-3">
-      <h2 className="font-display text-fg text-base font-semibold">{children}</h2>
-      {hint && <span className="text-muted font-mono text-xs">{hint}</span>}
+    <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+      <h2 className="font-display text-fg text-base font-semibold whitespace-nowrap">
+        {children}
+      </h2>
+      {hint && <span className="text-muted max-w-full truncate font-mono text-xs">{hint}</span>}
     </div>
   )
 }
@@ -98,9 +103,13 @@ export function Meta({
   className?: string
 }) {
   const shown = items.filter((i): i is MetaItem => Boolean(i))
+  if (shown.length === 0) return null
+  // One line, always. When there is more than the width can hold it ends in
+  // an ellipsis rather than wrapping, so callers put what matters first and
+  // split what doesn't belong together into a second, deliberate line.
   return (
     <span
-      className={`text-muted flex flex-wrap items-baseline gap-x-1.5 font-mono text-xs ${className}`}
+      className={`text-muted block max-w-full min-w-0 truncate font-mono text-xs ${className}`}
     >
       {shown.map((item, i) => {
         const text = typeof item === 'string' ? item : item.text
@@ -113,7 +122,7 @@ export function Meta({
             }
           >
             {i > 0 && (
-              <span className="text-muted mr-1.5 opacity-60" aria-hidden>
+              <span className="text-muted mx-1 opacity-60" aria-hidden>
                 ·
               </span>
             )}
@@ -127,9 +136,9 @@ export function Meta({
 
 /**
  * A ranked result, the same everywhere a list is scored: recommendations,
- * cross-family picks, pairing picks and the hub's picks. Rank, a wrapping
- * name, an optional mono detail (the type) and score, a score bar when the
- * score exists, and a one-line reason.
+ * cross-family picks, pairing picks and the hub's picks. Rank, a one-line
+ * name (it truncates rather than wraps), an optional mono detail (the type)
+ * and score, a score bar when the score exists, and a one-line reason.
  */
 export function Row({
   rank,
@@ -156,7 +165,7 @@ export function Row({
       <div className="flex items-start justify-between gap-3">
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="text-muted shrink-0 font-mono text-xs">#{rank}</span>
-          <span className="font-display text-fg group-hover:text-accent font-medium break-words transition-colors">
+          <span className="font-display text-fg group-hover:text-accent min-w-0 truncate font-medium transition-colors">
             {name}
           </span>
         </span>

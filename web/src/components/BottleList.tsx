@@ -156,18 +156,16 @@ export default function BottleList({ family, onRequireAuth }: Props) {
   const countLine = `${scoped.length} ${copy.noun(scoped.length)} ${
     status === 'all' ? 'logged' : STATUS_LABELS[status]
   }`
-  const offShelfLine = [
-    offShelf.finished > 0 && ` · ${offShelf.finished} finished`,
-    offShelf.tasted > 0 && ` · ${offShelf.tasted} tasted elsewhere`,
-  ]
-    .filter(Boolean)
-    .join('')
+  const offShelfSegments = [
+    offShelf.finished > 0 && `· ${offShelf.finished} finished`,
+    offShelf.tasted > 0 && `· ${offShelf.tasted} tasted elsewhere`,
+  ].filter((s): s is string => Boolean(s))
   const tail =
     filtered.length !== scoped.length
-      ? ` · showing ${filtered.length}`
-      : status === 'cabinet' && offShelfLine
-        ? offShelfLine
-        : ' · tap one for notes, radar & recommendations'
+      ? [`· showing ${filtered.length}`]
+      : status === 'cabinet' && offShelfSegments.length > 0
+        ? offShelfSegments
+        : ['· tap one for notes, radar & recommendations']
 
   return (
     <div className="flex flex-col gap-5">
@@ -176,8 +174,16 @@ export default function BottleList({ family, onRequireAuth }: Props) {
           <h1 className="font-display text-fg text-2xl font-bold sm:text-3xl">
             {copy.title}
           </h1>
-          <p className="text-muted mt-1 text-sm">
-            {bottles ? countLine + tail : copy.loading}
+          {/* Segments never break inside themselves: a narrow screen moves a
+              whole "· 1 tasted elsewhere" to the next line, never half of it. */}
+          <p className="text-muted mt-1 flex flex-wrap gap-x-1.5 text-sm">
+            {bottles
+              ? [countLine, ...tail].map((segment) => (
+                  <span key={segment} className="whitespace-nowrap">
+                    {segment}
+                  </span>
+                ))
+              : copy.loading}
           </p>
         </div>
         <button className={buttonClass} onClick={addBottle}>
@@ -265,55 +271,62 @@ export default function BottleList({ family, onRequireAuth }: Props) {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((b) => (
-          <button
-            key={b.id}
-            onClick={() => navigate(href.detail(b.id))}
-            className="border-line bg-panel/60 hover:border-accent/60 hover:bg-panel group flex gap-3 rounded-xl border p-4 text-left transition-colors"
-          >
-            {/* Left: what it is. Right: how it rates — the rating up top with
-                the note count at the foot, or "no notes yet" on its own,
-                centred on the card since it is all that side has to say. */}
-            <div className="flex min-w-0 flex-1 flex-col gap-3">
-              <div className="min-w-0">
-                <h2 className="font-display text-fg group-hover:text-accent truncate text-base font-semibold transition-colors">
-                  {b.name}
-                </h2>
-                <p className="text-muted truncate text-sm">{b.producer}</p>
+        {filtered.map((b) => {
+          const rated = b.noteCount > 0
+          return (
+            <button
+              key={b.id}
+              onClick={() => navigate(href.detail(b.id))}
+              className="border-line bg-panel/60 hover:border-accent/60 hover:bg-panel group relative flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors"
+            >
+              {/* Name block left; rating and note count up top on the right,
+                  beside the name. An unrated card's right side has only
+                  "no notes yet" to say, so that floats centred on the card
+                  and the name block leaves it room. Either way the meta line
+                  below gets the card's full width. */}
+              <div className="flex items-start justify-between gap-3">
+                <div className={`min-w-0 ${rated ? '' : 'pr-24'}`}>
+                  <h2 className="font-display text-fg group-hover:text-accent truncate text-base font-semibold transition-colors">
+                    {b.name}
+                  </h2>
+                  <p className="text-muted truncate text-sm">{b.producer}</p>
+                  {b.grape && (
+                    <p className="font-display text-warm mt-1 truncate text-sm font-semibold">
+                      {b.grape}
+                    </p>
+                  )}
+                </div>
+                {rated && (
+                  <div className="flex shrink-0 flex-col items-end">
+                    <RatingBadge value={b.avgRating} />
+                    <span className="text-muted font-mono text-xs">
+                      {b.noteCount} {b.noteCount === 1 ? 'note' : 'notes'}
+                    </span>
+                  </div>
+                )}
               </div>
-              {b.grape && (
-                <span className="font-display text-warm -mt-1 text-sm font-semibold">
-                  {b.grape}
-                </span>
-              )}
-              {/* One quiet line: type (the lead) · region · strength, and a
-                  warm "finished" / "tasted elsewhere" when it isn't on the
-                  shelf. Style, process and price belong to the detail page. */}
+              {/* One line, never two: type (the lead) · region · strength,
+                  plus a warm "finished" / "tasted elsewhere" only when the
+                  list mixes statuses. The % needs no "ABV" here; style,
+                  process and price belong to the detail page. */}
               <Meta
                 className="mt-auto"
                 items={[
                   { text: b.type, tone: 'lead' },
+                  status === 'all' &&
+                    b.status !== 'cabinet' && { text: STATUS_LABELS[b.status], tone: 'warm' },
                   b.region,
-                  isCoffee(b.type) ? b.roast && `${b.roast} roast` : `${b.abv}% ABV`,
-                  b.status !== 'cabinet' && { text: STATUS_LABELS[b.status], tone: 'warm' },
+                  isCoffee(b.type) ? b.roast && `${b.roast} roast` : `${b.abv}%`,
                 ]}
               />
-            </div>
-            <div
-              className={`flex shrink-0 flex-col items-end ${
-                b.noteCount > 0 ? 'justify-between' : 'justify-center'
-              }`}
-            >
-              <RatingBadge value={b.avgRating} />
-              {/* The badge already says "no notes yet" — no "0 notes" echo. */}
-              {b.noteCount > 0 && (
-                <span className="text-muted font-mono text-xs">
-                  {b.noteCount} {b.noteCount === 1 ? 'note' : 'notes'}
+              {!rated && (
+                <span className="absolute top-1/2 right-4 flex -translate-y-1/2">
+                  <RatingBadge value={null} />
                 </span>
               )}
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

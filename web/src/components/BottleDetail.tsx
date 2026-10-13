@@ -1,8 +1,9 @@
 /**
  * Bottle detail (route `#/bottles/:id`) — serves both families. Lays out:
- *   - bottle meta (producer, then one line: type · region · style-or-roast ·
- *     ABV · price, and "finished" / "tasted elsewhere" when it isn't on the
- *     shelf) with a single-row rating + note-count + edit cluster,
+ *   - bottle meta: a "finished" / "tasted elsewhere" eyebrow when it isn't
+ *     on the shelf, the name, producer, then two lines that never wrap —
+ *     type · region · ABV, and price · style (or roast · process) — beside a
+ *     single-row rating + note-count + edit cluster,
  *   - the D3 radar of its averaged flavor profile,
  *   - the "like this" recommendations panel (with cross-family picks),
  *   - the tasting-notes list (coffee wears aroma / flavor / aftertaste, shows
@@ -141,6 +142,11 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
       {/* header: meta left; one row of rating · count · edit right */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
+          {bottle.status !== 'cabinet' && (
+            <p className="text-warm mb-1 font-mono text-[0.7rem] tracking-wide uppercase">
+              {STATUS_LABELS[bottle.status]}
+            </p>
+          )}
           <h1 className="font-display text-fg text-2xl font-bold sm:text-3xl">
             {bottle.name}
           </h1>
@@ -150,21 +156,24 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
             </p>
           )}
           <p className="text-muted mt-1">{bottle.producer}</p>
-          {/* Everything about the bottle on one quiet line; the type leads
-              in accent, the rating beside it is the only oxblood. */}
+          {/* Two quiet lines, neither of which wraps: what it is (the type
+              leads in accent), then its particulars — price first so a long
+              style is what gives way if anything must. */}
           <Meta
             className="mt-3"
             items={[
               { text: bottle.type, tone: 'lead' },
               bottle.region,
+              !coffee && `${bottle.abv}% ABV`,
+            ]}
+          />
+          <Meta
+            className="mt-1"
+            items={[
+              bottle.price != null && `$${bottle.price}`,
               ...(coffee
                 ? [bottle.roast && `${bottle.roast} roast`, bottle.process]
-                : [bottle.style, `${bottle.abv}% ABV`]),
-              bottle.price != null && `$${bottle.price}`,
-              bottle.status !== 'cabinet' && {
-                text: STATUS_LABELS[bottle.status],
-                tone: 'warm',
-              },
+                : [bottle.style]),
             ]}
           />
         </div>

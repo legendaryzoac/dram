@@ -137,16 +137,28 @@ export default function AccountPage({ onRequireAuth }: Props) {
         </button>
       </header>
 
-      <Meta
-        items={[
-          `${cabinet.length} ${cabinet.length === 1 ? 'bottle' : 'bottles'} on the shelf`,
-          `${coffees.length} ${coffees.length === 1 ? 'coffee' : 'coffees'}`,
-          finished > 0 && `${finished} finished`,
-          tasted > 0 && `${tasted} tasted elsewhere`,
-          `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} written`,
-          avg != null && { text: `${avg.toFixed(1)} / 10 average`, tone: 'warm' },
-        ]}
-      />
+      {/* Three groups of facts. On a wide screen they share a line; on a
+          phone a group moves down whole — a line never breaks mid-group. */}
+      <div className="flex flex-wrap gap-x-5 gap-y-1">
+        <Meta
+          items={[
+            `${cabinet.length} ${cabinet.length === 1 ? 'bottle' : 'bottles'} on the shelf`,
+            `${coffees.length} ${coffees.length === 1 ? 'coffee' : 'coffees'}`,
+          ]}
+        />
+        <Meta
+          items={[
+            finished > 0 && `${finished} finished`,
+            tasted > 0 && `${tasted} tasted elsewhere`,
+          ]}
+        />
+        <Meta
+          items={[
+            `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} written`,
+            avg != null && { text: `${avg.toFixed(1)} / 10 average`, tone: 'warm' },
+          ]}
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
