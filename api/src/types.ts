@@ -277,8 +277,8 @@ export interface NoteItem {
 }
 
 /** DynamoDB item for a group tasting: PK=TASTING#<code>, SK=META. Keyed by
- *  the code so a guest's request is one GetItem; `ttl` lets DynamoDB sweep
- *  the row a day after it expires. */
+ *  the code so a guest's request is one GetItem. Kept after it expires: it
+ *  names the tasting's grouped palate in the host's list. */
 export interface TastingItem {
   pk: string
   sk: 'META'
@@ -291,6 +291,4 @@ export interface TastingItem {
   expiresAt: string
   endedAt?: string
   noteCount: number
-  /** Epoch seconds — the table's TTL attribute. */
-  ttl: number
 }

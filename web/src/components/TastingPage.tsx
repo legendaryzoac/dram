@@ -10,9 +10,13 @@
  * The guest screen is notes only. It never opens a bottle's detail page, so
  * a guest makes no recommendation or pairing calls; their notes still land on
  * the bottles like anyone's.
+ *
+ * Each tasting has its own grouped palate (TastingPalate): the host sees one
+ * per tasting, guests see their table's fill in as they log. Guest notes
+ * never count toward the owner's palate on the hub.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Bottle, NewNoteInput, Tasting } from '../lib/types'
+import type { BottleDetail, NewNoteInput, Tasting } from '../lib/types'
 import { TASTING_LIMITS, TASTING_TTL_HOURS, formatCode, onShelf } from '../lib/types'
 import { ApiError, getApi } from '../lib/api'
 import {
@@ -23,9 +27,11 @@ import {
   timeLeft,
   type GuestSession,
 } from '../lib/tasting'
+import { loadCorpus, tastingPalate } from '../lib/hub'
 import { navigate, href } from '../lib/router'
 import { useAuth } from './AuthContext'
 import NoteForm from './NoteForm'
+import TastingPalate from './TastingPalate'
 import {
   Field,
   Meta,
@@ -198,10 +204,16 @@ function GuestView({
   onLeave: (why?: string) => void
 }) {
   const now = useNow()
-  const [bottles, setBottles] = useState<Bottle[] | null>(null)
+  const [details, setDetails] = useState<BottleDetail[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  // Bumped after a save (and every minute) so the table's palate keeps up.
+  const [reload, setReload] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setReload((r) => r + 1), 60_000)
+    return () => clearInterval(t)
+  }, [])
 
   const expired = Date.parse(session.invite.expiresAt) <= now
   useEffect(() => {
@@ -210,14 +222,27 @@ function GuestView({
 
   useEffect(() => {
     let live = true
-    getApi()
-      .listBottles()
-      .then((list) => live && setBottles(list.filter(onShelf)))
+    loadCorpus(getApi())
+      .then((d) => {
+        if (live) {
+          setDetails(d)
+          setError(null)
+        }
+      })
       .catch((e: Error) => live && setError(e.message))
     return () => {
       live = false
     }
-  }, [])
+  }, [reload])
+
+  const bottles = useMemo(
+    () => (details ? details.map((d) => d.bottle).filter(onShelf) : null),
+    [details],
+  )
+  const table = useMemo(
+    () => (details ? tastingPalate(details, session.invite.id) : null),
+    [details, session.invite.id],
+  )
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -257,6 +282,13 @@ function GuestView({
           Leave
         </button>
       </Panel>
+
+      {table && (
+        <Panel>
+          <SectionTitle hint="everyone's notes at this tasting">The table’s palate</SectionTitle>
+          <TastingPalate palate={table} />
+        </Panel>
+      )}
 
       <Panel>
         <SectionTitle hint="tap a bottle to log what you taste">On the shelf</SectionTitle>
@@ -299,6 +331,7 @@ function GuestView({
                       submitNote={(input) => submit(b.id, input)}
                       onSaved={() => {
                         setOpen(null)
+                        setReload((r) => r + 1)
                         if (!logged) {
                           onUpdate({ ...session, logged: [...session.logged, b.id] })
                         }
@@ -326,17 +359,25 @@ function HostPanel({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
+  const [details, setDetails] = useState<BottleDetail[] | null>(null)
+  const [openPast, setOpenPast] = useState<string | null>(null)
 
   useEffect(() => {
     let live = true
-    getApi()
-      .listTastings(token)
-      .then((list) => live && setTastings(list))
+    const api = getApi()
+    Promise.all([api.listTastings(token), loadCorpus(api)])
+      .then(([list, corpus]) => {
+        if (!live) return
+        setTastings(list)
+        setDetails(corpus)
+      })
       .catch((e: Error) => live && setError(e.message))
     return () => {
       live = false
     }
   }, [token, reload])
+
+  const palateOf = (t: Tasting) => (details ? tastingPalate(details, t.id) : null)
 
   async function start(e: React.FormEvent) {
     e.preventDefault()
@@ -425,6 +466,9 @@ function HostPanel({ token }: { token: string }) {
                   />
                 </div>
                 <div className="flex gap-2">
+                  <button className={ghostButtonClass} onClick={() => setReload((r) => r + 1)}>
+                    Refresh
+                  </button>
                   <button className={ghostButtonClass} onClick={() => copy(t.code)}>
                     {copied === t.code ? 'Copied' : 'Copy link'}
                   </button>
@@ -433,6 +477,11 @@ function HostPanel({ token }: { token: string }) {
                   </button>
                 </div>
               </div>
+              {palateOf(t) && (
+                <div className="border-line mt-4 border-t pt-4">
+                  <TastingPalate palate={palateOf(t)!} linkBottles />
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -443,26 +492,45 @@ function HostPanel({ token }: { token: string }) {
           <p className="text-muted mb-2 font-mono text-[0.7rem] uppercase tracking-wider">
             Earlier
           </p>
-          <ul className="flex flex-col gap-1">
-            {past.map((t) => (
-              <li key={t.id}>
-                <Meta
-                  items={[
-                    t.label,
-                    t.endedAt ? 'ended early' : 'expired',
-                    `${t.noteCount} ${t.noteCount === 1 ? 'note' : 'notes'}`,
-                    new Date(t.createdAt).toLocaleDateString(),
-                  ]}
-                />
-              </li>
-            ))}
+          <ul className="flex flex-col gap-2">
+            {past.map((t) => {
+              const shown = openPast === t.id
+              const palate = palateOf(t)
+              return (
+                <li key={t.id} className="border-line rounded-lg border">
+                  <button
+                    className="flex min-h-[44px] w-full items-center justify-between gap-3 px-3 text-left"
+                    onClick={() => setOpenPast(shown ? null : t.id)}
+                    aria-expanded={shown}
+                  >
+                    <Meta
+                      items={[
+                        { text: t.label, tone: 'lead' },
+                        new Date(t.createdAt).toLocaleDateString(),
+                        `${t.noteCount} ${t.noteCount === 1 ? 'note' : 'notes'}`,
+                        t.endedAt ? 'ended early' : 'expired',
+                      ]}
+                    />
+                    <span className="text-muted shrink-0 font-mono text-xs">
+                      {shown ? 'close' : 'palate'}
+                    </span>
+                  </button>
+                  {shown && palate && (
+                    <div className="border-line border-t p-3">
+                      <TastingPalate palate={palate} linkBottles />
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
 
       <p className="text-muted mt-4 text-xs">
         Guests log notes on bottles on the shelf, under their own name. They can’t
-        edit bottles or notes, and get no recommendations or pairing.{' '}
+        edit bottles or notes, and get no recommendations or pairing. Their notes
+        make up each tasting’s palate and stay off yours.{' '}
         <button onClick={() => navigate(href.list())} className="text-accent hover:underline">
           Back to the cabinet
         </button>

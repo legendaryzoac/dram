@@ -138,9 +138,6 @@ export class SiteStack extends Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: RemovalPolicy.RETAIN,
-      // Group-tasting rows (PK=TASTING#<code>) carry `ttl`, swept a day after
-      // the code expires. Bottles and notes never set it.
-      timeToLiveAttribute: 'ttl',
     })
 
     // ---- API Lambda ----

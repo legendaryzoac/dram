@@ -125,8 +125,6 @@ export async function handleCreateTasting(
       createdAt: now.toISOString(),
       expiresAt: expires.toISOString(),
       noteCount: 0,
-      // Swept by DynamoDB TTL a day after expiry; the notes themselves stay.
-      ttl: Math.floor(expires.getTime() / 1000) + 86_400,
     }
     if (await putNewTasting(item)) return json(200, toTasting(item, now), origin)
   }

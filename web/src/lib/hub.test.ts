@@ -5,11 +5,13 @@ import {
   DETAIL_CONCURRENCY,
   averageRating,
   collectNotes,
+  collectTastingNotes,
   detailsFrom,
   gearStats,
   loadCorpus,
   mapLimit,
   tasteProfile,
+  tastingPalate,
   topAxes,
 } from './hub'
 import { ApiError, type DramApi } from './api'
@@ -72,6 +74,46 @@ describe('collectNotes', () => {
     expect(all[0].bottleName).toBe('Yirgacheffe')
     expect(all[0].bottleType).toBe('coffee')
     expect(all[1].bottleName).toBe('Lagavulin 16')
+  })
+})
+
+describe('group tasting palates', () => {
+  const flav = (smoky: number, sweet: number) => ({
+    sweet, fruity: 0, floral: 0, acidity: 0, body: 0, oaky: 0, smoky, spicy: 0,
+  })
+  const details = [
+    detail('b1', 'Lagavulin 16', 'scotch', [
+      note({ id: 'mine', rating: 9, flavorTags: flav(5, 1) }),
+      note({ id: 'g1', rating: 6, flavorTags: flav(4, 0), taster: 'Sam', tastingId: 't1' }),
+      note({ id: 'g2', rating: 8, flavorTags: flav(2, 2), taster: 'Ana', tastingId: 't1' }),
+    ]),
+    detail('b2', 'Redbreast 12', 'irish', [
+      note({ id: 'g3', bottleId: 'b2', rating: 9, flavorTags: flav(0, 4), taster: 'Sam', tastingId: 't1' }),
+      note({ id: 'other', bottleId: 'b2', rating: 3, flavorTags: flav(0, 0), taster: 'Lee', tastingId: 't2' }),
+    ]),
+  ]
+
+  it("keeps guest notes out of the owner's history", () => {
+    expect(collectNotes(details).map((n) => n.id)).toEqual(['mine'])
+  })
+
+  it('groups a tasting on its own, apart from other tastings', () => {
+    expect(collectTastingNotes(details, 't1').map((n) => n.id).sort()).toEqual(['g1', 'g2', 'g3'])
+    const p = tastingPalate(details, 't1')
+    expect(p.noteCount).toBe(3)
+    expect(p.avgRating).toBe(7.7)
+    expect(p.palate?.smoky).toBe(2)
+    expect(p.palate?.sweet).toBe(2)
+    expect(p.tasters).toEqual([['Sam', 2], ['Ana', 1]])
+    expect(p.favourites.map((f) => [f.name, f.avgRating])).toEqual([
+      ['Redbreast 12', 9],
+      ['Lagavulin 16', 7],
+    ])
+  })
+
+  it('an empty tasting has no palate', () => {
+    const p = tastingPalate(details, 'nope')
+    expect(p).toMatchObject({ noteCount: 0, palate: null, avgRating: null, tasters: [], favourites: [] })
   })
 })
 

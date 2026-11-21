@@ -3,8 +3,10 @@
  * into one reverse-chronological stream, and derive the drinker's aggregate
  * palate from them. Kept DOM-free so it's unit-testable.
  *
- * Note on "your" notes: dram is a personal, invite-only log — notes carry no
- * author field, so the hub treats the whole corpus as the drinker's history.
+ * Note on "your" notes: dram is a personal, invite-only log, so the hub treats
+ * the corpus as the drinker's history — except notes guests logged through a
+ * group tasting (`tastingId`). Those are kept apart: each tasting gets its own
+ * grouped palate (`tastingPalate`) and never shapes the owner's.
  */
 import type { Bottle, BottleDetail, FlavorTags, TastingNote } from './types'
 import { EMPTY_FLAVOR, FLAVOR_AXES } from './types'
@@ -73,8 +75,8 @@ export interface HubNote extends TastingNote {
   bottleType: string
 }
 
-/** Every note in the corpus, newest first. */
-export function collectNotes(details: BottleDetail[]): HubNote[] {
+/** Every note joined to its bottle, newest first — guests' included. */
+function joinNotes(details: BottleDetail[]): HubNote[] {
   return details
     .flatMap(({ bottle, notes }) =>
       notes.map((n) => ({
@@ -84,6 +86,74 @@ export function collectNotes(details: BottleDetail[]): HubNote[] {
       })),
     )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+/** The owner's notes, newest first: guest notes from group tastings are left
+ *  out — they belong to their tasting's palate, not the owner's. */
+export function collectNotes(details: BottleDetail[]): HubNote[] {
+  return joinNotes(details).filter((n) => !n.tastingId)
+}
+
+/** One group tasting's notes, newest first. */
+export function collectTastingNotes(
+  details: BottleDetail[],
+  tastingId: string,
+): HubNote[] {
+  return joinNotes(details).filter((n) => n.tastingId === tastingId)
+}
+
+/** A bottle as the table rated it. */
+export interface TastingFavourite {
+  bottleId: string
+  name: string
+  type: string
+  avgRating: number
+  noteCount: number
+}
+
+/** The grouped palate of one tasting: everyone's notes from that code, as if
+ *  the table were one drinker. */
+export interface TastingPalate {
+  noteCount: number
+  palate: FlavorTags | null
+  avgRating: number | null
+  /** [name, notes logged], most first. */
+  tasters: Array<[string, number]>
+  /** Bottles by the table's mean rating (ties: more notes first), top 3. */
+  favourites: TastingFavourite[]
+}
+
+export function tastingPalate(
+  details: BottleDetail[],
+  tastingId: string,
+): TastingPalate {
+  const notes = collectTastingNotes(details, tastingId)
+  const tasters = new Map<string, number>()
+  const byBottle = new Map<string, HubNote[]>()
+  for (const n of notes) {
+    const name = n.taster ?? 'guest'
+    tasters.set(name, (tasters.get(name) ?? 0) + 1)
+    const arr = byBottle.get(n.bottleId)
+    if (arr) arr.push(n)
+    else byBottle.set(n.bottleId, [n])
+  }
+  const favourites = [...byBottle.entries()]
+    .map(([bottleId, ns]) => ({
+      bottleId,
+      name: ns[0].bottleName,
+      type: ns[0].bottleType,
+      avgRating: averageRating(ns) ?? 0,
+      noteCount: ns.length,
+    }))
+    .sort((a, b) => b.avgRating - a.avgRating || b.noteCount - a.noteCount || a.name.localeCompare(b.name))
+    .slice(0, 3)
+  return {
+    noteCount: notes.length,
+    palate: tasteProfile(notes),
+    avgRating: averageRating(notes),
+    tasters: [...tasters.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
+    favourites,
+  }
 }
 
 /** Mean flavor profile across all notes — the drinker's aggregate palate.

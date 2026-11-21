@@ -48,14 +48,18 @@ share link (`#/tasting/<code>`), good for **8 hours** or until you end it. Guest
 open the link (or type the code) with a name and can log tasting notes on any bottle
 on the shelf. That's all a code grants: no bottle edits, no note edits (theirs
 included), no recommendations or pairing. Guest notes carry the taster's name, show
-up on the bottle like any other, are embedded with Titan, and feed the recommender.
+up on the bottle like any other, are embedded with Titan, and feed the recommender —
+but they stay off your own palate. Each tasting gets its **own grouped palate**
+instead: the table's radar, average rating, who tasted what, and its favourites. The
+host sees one per tasting (past ones included); guests watch their table's fill in.
 
 - `POST /tastings` · `GET /tastings` · `DELETE /tastings/{code}` — host, Cognito-authed
 - `GET /tastings/{code}` · `POST /tastings/{code}/bottles/{id}/notes` — public; the
   code in the path is the credential, checked per request (404 unknown, 410
   ended/expired, 429 past 300 notes), and the routes are throttled at the stage
-- Stored as `PK=TASTING#<code>`, swept by DynamoDB TTL a day after expiry; notes
-  record the tasting's public id, never its code (`GET /notes` is public)
+- Stored as `PK=TASTING#<code>` and kept after expiry (it names the palate); notes
+  record the tasting's public id, never its code (`GET /notes` is public), and the
+  palate is grouped client-side from `GET /notes` by that id
 
 Sibling to [interp](https://interp.zackwithers.com) and the
 [adversarial playground](https://playground.zackwithers.com) — same S3 + CloudFront +

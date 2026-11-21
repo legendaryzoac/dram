@@ -271,7 +271,7 @@ export async function getTastingItem(code: string): Promise<TastingItem | null> 
   return (res.Item as TastingItem | undefined) ?? null
 }
 
-/** The host's tastings (a filtered Scan — rows are TTL-swept, so few). */
+/** The host's tastings (a filtered Scan — a handful of rows per evening). */
 export async function listTastingItems(ownerSub: string): Promise<TastingItem[]> {
   const items: TastingItem[] = []
   let lastKey: Record<string, unknown> | undefined
