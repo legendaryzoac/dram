@@ -25,6 +25,8 @@ import type {
   PairingNarration,
   PairingRequest,
   RecommendationResult,
+  Tasting,
+  TastingInvite,
   TastingNote,
 } from './types'
 import { makeMockApi } from './mockApi'
@@ -64,6 +66,22 @@ export interface DramApi {
     token: string,
   ): Promise<PairingNarration>
   health(): Promise<{ ok: true }>
+
+  // ---- group tastings ----
+  /** Host: open a tasting; its code is good for TASTING_TTL_HOURS. */
+  createTasting(input: { label?: string }, token: string): Promise<Tasting>
+  /** Host: their tastings, newest first. */
+  listTastings(token: string): Promise<Tasting[]>
+  /** Host: end a tasting now; the code stops working. */
+  endTasting(code: string, token: string): Promise<Tasting>
+  /** Guest: check a code (404 unknown, 410 ended/expired). No token. */
+  getTasting(code: string): Promise<TastingInvite>
+  /** Guest: log a note with the code instead of an account. */
+  addTastingNote(
+    code: string,
+    bottleId: string,
+    input: NewNoteInput & { taster: string },
+  ): Promise<TastingNote>
 }
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
@@ -183,6 +201,42 @@ export function makeRealApi(baseUrl = API_BASE_URL): DramApi {
     },
     async health() {
       return parse<{ ok: true }>(await fetch(url('/health')))
+    },
+    async createTasting(input, token) {
+      const res = await fetch(url('/tastings'), {
+        method: 'POST',
+        headers: authHeaders(token, true),
+        body: JSON.stringify(input),
+      })
+      return parse<Tasting>(res)
+    },
+    async listTastings(token) {
+      return parse<Tasting[]>(
+        await fetch(url('/tastings'), { headers: authHeaders(token, false) }),
+      )
+    },
+    async endTasting(code, token) {
+      const res = await fetch(url(`/tastings/${encodeURIComponent(code)}`), {
+        method: 'DELETE',
+        headers: authHeaders(token, false),
+      })
+      return parse<Tasting>(res)
+    },
+    async getTasting(code) {
+      return parse<TastingInvite>(
+        await fetch(url(`/tastings/${encodeURIComponent(code)}`)),
+      )
+    },
+    async addTastingNote(code, bottleId, input) {
+      const res = await fetch(
+        url(`/tastings/${encodeURIComponent(code)}/bottles/${bottleId}/notes`),
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(input),
+        },
+      )
+      return parse<TastingNote>(res)
     },
   }
 }

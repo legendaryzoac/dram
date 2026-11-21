@@ -23,9 +23,17 @@ import type {
   Recommendation,
   RecommendationBasis,
   RecommendationResult,
+  Tasting,
   TastingNote,
 } from './types'
-import { EMPTY_FLAVOR, FLAVOR_AXES, familyOf, normalizeRoast, onShelf } from './types'
+import {
+  EMPTY_FLAVOR,
+  FLAVOR_AXES,
+  TASTING_TTL_HOURS,
+  familyOf,
+  normalizeRoast,
+  onShelf,
+} from './types'
 import type { DramApi } from './api'
 import { ApiError } from './api'
 import { rankBySimilarity, type ScoredBottle } from './recommend'
@@ -772,6 +780,24 @@ export function makeMockApi(): DramApi {
     for (const n of notes) noteAuthors.set(n.id, 'demo-token')
   }
 
+  // Group tastings, keyed by code. Host is whichever token opened it.
+  const tastings = new Map<string, Tasting & { host: string }>()
+  const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const canon = (c: string) => c.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const statusOf = (t: Tasting): Tasting['status'] =>
+    t.endedAt ? 'ended' : Date.parse(t.expiresAt) > Date.now() ? 'live' : 'expired'
+  const view = (t: Tasting & { host: string }): Tasting => {
+    const out: Tasting & { host?: string } = { ...t, status: statusOf(t) }
+    delete out.host
+    return out
+  }
+  function liveTasting(code: string): Tasting & { host: string } {
+    const t = tastings.get(canon(code))
+    if (!t) throw new ApiError(404, 'no tasting with that code')
+    if (statusOf(t) !== 'live') throw new ApiError(410, 'this tasting has ended')
+    return t
+  }
+
   return {
     async listBottles() {
       await wait()
@@ -852,6 +878,82 @@ export function makeMockApi(): DramApi {
       requireToken(token)
       if (!store.bottles.delete(id)) throw new ApiError(404, `No bottle ${id}`)
       store.notes.delete(id)
+    },
+
+    async createTasting(input, token) {
+      await wait()
+      requireToken(token)
+      const draw = () =>
+        Array.from({ length: 8 }, () => CODE_ALPHABET[Math.floor(Math.random() * 32)]).join('')
+      let code = draw()
+      while (tastings.has(code)) code = draw()
+      const now = Date.now()
+      const t = {
+        id: nextId('t'),
+        code,
+        label: input.label?.trim() || 'Group tasting',
+        createdAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + TASTING_TTL_HOURS * 3_600_000).toISOString(),
+        status: 'live' as const,
+        noteCount: 0,
+        host: token,
+      }
+      tastings.set(code, t)
+      return view(t)
+    },
+
+    async listTastings(token) {
+      await wait()
+      requireToken(token)
+      return [...tastings.values()]
+        .filter((t) => t.host === token)
+        .map(view)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    },
+
+    async endTasting(code, token) {
+      await wait()
+      requireToken(token)
+      const t = tastings.get(canon(code))
+      if (!t || t.host !== token) throw new ApiError(404, 'no tasting with that code')
+      t.endedAt ??= new Date().toISOString()
+      return view(t)
+    },
+
+    async getTasting(code) {
+      await wait()
+      const t = liveTasting(code)
+      return { id: t.id, label: t.label, expiresAt: t.expiresAt }
+    },
+
+    async addTastingNote(code, bottleId, input) {
+      await wait()
+      const t = liveTasting(code)
+      if (!store.bottles.has(bottleId)) {
+        throw new ApiError(404, `No bottle ${bottleId}`)
+      }
+      const taster = input.taster.trim()
+      if (!taster) throw new ApiError(400, 'taster required')
+      t.noteCount += 1
+      const note: TastingNote = {
+        id: nextId('n-guest'),
+        bottleId,
+        nose: input.nose,
+        palate: input.palate,
+        finish: input.finish,
+        rating: input.rating,
+        flavorTags: input.flavorTags,
+        brew: input.brew,
+        createdAt: new Date().toISOString(),
+        taster,
+        tastingId: t.id,
+      }
+      // No author entry: nobody can edit a guest's note.
+      const list = store.notes.get(bottleId) ?? []
+      list.push(note)
+      store.notes.set(bottleId, list)
+      refreshDerived(store, bottleId)
+      return note
     },
 
     async addNote(bottleId, input, token) {

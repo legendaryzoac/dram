@@ -4,6 +4,7 @@ import {
   PutCommand,
   QueryCommand,
   ScanCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
 import { TABLE_NAME, ddb } from './db'
 import {
@@ -13,6 +14,7 @@ import {
   type BottleItem,
   type FlavorTags,
   type NoteItem,
+  type TastingItem,
   type TastingNote,
 } from './types'
 
@@ -84,6 +86,8 @@ export function toNote(item: NoteItem): TastingNote {
   const flavorTags = {} as FlavorTags
   for (const axis of FLAVOR_AXES) flavorTags[axis] = item.flavorTags[axis] ?? 0
   // Deliberately omits `embedding` and `authorSub` — stored, never returned.
+  // `taster` and `tastingId` are public; the tasting's code never touches a
+  // note, since GET /notes is a public read.
   return {
     id: item.id,
     bottleId: item.bottleId,
@@ -95,6 +99,8 @@ export function toNote(item: NoteItem): TastingNote {
     brew: item.brew,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    taster: item.taster,
+    tastingId: item.tastingId,
   }
 }
 
@@ -232,4 +238,116 @@ export async function deleteBottleAndNotes(id: string): Promise<boolean> {
     )
   }
   return true
+}
+
+// ---- group tastings ----
+
+export const tastingPk = (code: string) => `TASTING#${code}`
+
+/** Write a new tasting; false if the code is already taken (retry another). */
+export async function putNewTasting(item: TastingItem): Promise<boolean> {
+  try {
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: item,
+        ConditionExpression: 'attribute_not_exists(pk)',
+      }),
+    )
+    return true
+  } catch (err) {
+    if (isConditionFailure(err)) return false
+    throw err
+  }
+}
+
+export async function getTastingItem(code: string): Promise<TastingItem | null> {
+  const res = await ddb.send(
+    new GetCommand({
+      TableName: TABLE_NAME,
+      Key: { pk: tastingPk(code), sk: BOTTLE_SK },
+    }),
+  )
+  return (res.Item as TastingItem | undefined) ?? null
+}
+
+/** The host's tastings (a filtered Scan — rows are TTL-swept, so few). */
+export async function listTastingItems(ownerSub: string): Promise<TastingItem[]> {
+  const items: TastingItem[] = []
+  let lastKey: Record<string, unknown> | undefined
+  do {
+    const res = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: '#t = :tasting AND ownerSub = :sub',
+        ExpressionAttributeNames: { '#t': 'type' },
+        ExpressionAttributeValues: { ':tasting': 'tasting', ':sub': ownerSub },
+        ExclusiveStartKey: lastKey,
+      }),
+    )
+    items.push(...((res.Items ?? []) as TastingItem[]))
+    lastKey = res.LastEvaluatedKey
+  } while (lastKey)
+  return items
+}
+
+/**
+ * Take one note slot on a tasting, atomically: succeeds only while the
+ * tasting is live (not ended, not past expiresAt) and under `max` notes.
+ * The check and the count are one conditional update, so two guests racing
+ * past the cap, or a note landing as the host ends it, can't slip through.
+ */
+export async function claimTastingNote(
+  code: string,
+  nowIso: string,
+  max: number,
+): Promise<boolean> {
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: { pk: tastingPk(code), sk: BOTTLE_SK },
+        UpdateExpression: 'ADD noteCount :one',
+        ConditionExpression:
+          'attribute_exists(pk) AND expiresAt > :now AND attribute_not_exists(endedAt) AND noteCount < :max',
+        ExpressionAttributeValues: { ':one': 1, ':now': nowIso, ':max': max },
+      }),
+    )
+    return true
+  } catch (err) {
+    if (isConditionFailure(err)) return false
+    throw err
+  }
+}
+
+/** End a tasting early. Only its host may; false when not theirs/missing. */
+export async function endTastingItem(
+  code: string,
+  ownerSub: string,
+  nowIso: string,
+): Promise<TastingItem | null> {
+  try {
+    const res = await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: { pk: tastingPk(code), sk: BOTTLE_SK },
+        UpdateExpression: 'SET endedAt = if_not_exists(endedAt, :now)',
+        ConditionExpression: 'attribute_exists(pk) AND ownerSub = :sub',
+        ExpressionAttributeValues: { ':now': nowIso, ':sub': ownerSub },
+        ReturnValues: 'ALL_NEW',
+      }),
+    )
+    return (res.Attributes as TastingItem | undefined) ?? null
+  } catch (err) {
+    if (isConditionFailure(err)) return null
+    throw err
+  }
+}
+
+function isConditionFailure(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { name?: string }).name === 'ConditionalCheckFailedException'
+  )
 }

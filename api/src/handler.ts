@@ -13,6 +13,13 @@ import { json, noContent } from './http'
 import { handleCreateNote, handleListNotes, handleUpdateNote } from './notes'
 import { handlePairing } from './pairings'
 import { handleRecommendations } from './recommendations'
+import {
+  handleCreateTasting,
+  handleCreateTastingNote,
+  handleEndTasting,
+  handleGetTasting,
+  handleListTastings,
+} from './tastings'
 
 // The HTTP API's JWT authorizer (Cognito) gates every write route, so a request
 // that reaches this Lambda on a write path is already authenticated. We treat a
@@ -42,6 +49,7 @@ export async function handler(
   const params = event.pathParameters ?? {}
   const id = params.id
   const noteId = params.noteId
+  const code = params.code
   const sub = callerSub(event)
 
   try {
@@ -54,6 +62,14 @@ export async function handler(
     }
     if (routeKey === 'GET /bottles/{id}/recommendations' && id) {
       return await handleRecommendations(id, origin)
+    }
+
+    // --- group tastings, guest side: the code in the path is the credential ---
+    if (routeKey === 'GET /tastings/{code}' && code) {
+      return await handleGetTasting(code, origin)
+    }
+    if (routeKey === 'POST /tastings/{code}/bottles/{id}/notes' && code && id) {
+      return await handleCreateTastingNote(code, id, event, origin)
     }
 
     // --- authed writes ---
@@ -82,6 +98,20 @@ export async function handler(
     if (routeKey === 'POST /pairings') {
       if (!sub) return json(401, { error: 'unauthorized' }, origin)
       return await handlePairing(event, origin)
+    }
+
+    // Group tastings, host side.
+    if (routeKey === 'POST /tastings') {
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
+      return await handleCreateTasting(event, sub, origin)
+    }
+    if (routeKey === 'GET /tastings') {
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
+      return await handleListTastings(sub, origin)
+    }
+    if (routeKey === 'DELETE /tastings/{code}' && code) {
+      if (!sub) return json(401, { error: 'unauthorized' }, origin)
+      return await handleEndTasting(code, sub, origin)
     }
 
     return json(404, { error: 'not found' }, origin)

@@ -138,6 +138,9 @@ export class SiteStack extends Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: RemovalPolicy.RETAIN,
+      // Group-tasting rows (PK=TASTING#<code>) carry `ttl`, swept a day after
+      // the code expires. Bottles and notes never set it.
+      timeToLiveAttribute: 'ttl',
     })
 
     // ---- API Lambda ----
@@ -222,6 +225,30 @@ export class SiteStack extends Stack {
       httpApi.addRoutes({ path: route, methods: [method], integration })
     }
 
+    // Group tastings, guest side: no JWT — the 8-hour code in the path is
+    // the credential, checked by the Lambda. Throttled per route so the
+    // code space can't be walked and a shared code can't flood the table.
+    const guestRoutes = [
+      [apigwv2.HttpMethod.GET, '/tastings/{code}'],
+      [apigwv2.HttpMethod.POST, '/tastings/{code}/bottles/{id}/notes'],
+    ] as const
+    const guestRouteConstructs = guestRoutes.flatMap(([method, route]) =>
+      httpApi.addRoutes({ path: route, methods: [method], integration }),
+    )
+    const stage = httpApi.defaultStage?.node.defaultChild as
+      | apigwv2.CfnStage
+      | undefined
+    if (stage) {
+      stage.routeSettings = Object.fromEntries(
+        guestRoutes.map(([method, route]) => [
+          `${method} ${route}`,
+          { ThrottlingRateLimit: 5, ThrottlingBurstLimit: 20 },
+        ]),
+      )
+      // Route settings name routes by key; the routes must exist first.
+      for (const r of guestRouteConstructs) stage.node.addDependency(r)
+    }
+
     // Authed writes (JWT authorizer).
     for (const [method, route] of [
       [apigwv2.HttpMethod.POST, '/bottles'],
@@ -231,6 +258,10 @@ export class SiteStack extends Stack {
       [apigwv2.HttpMethod.PUT, '/bottles/{id}/notes/{noteId}'],
       // Pairing narration (Haiku) — authed: a model call with free-text input.
       [apigwv2.HttpMethod.POST, '/pairings'],
+      // Group tastings, host side: open, list, end early.
+      [apigwv2.HttpMethod.POST, '/tastings'],
+      [apigwv2.HttpMethod.GET, '/tastings'],
+      [apigwv2.HttpMethod.DELETE, '/tastings/{code}'],
     ] as const) {
       httpApi.addRoutes({ path: route, methods: [method], integration, authorizer })
     }

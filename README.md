@@ -40,6 +40,23 @@ two questions: **what to order** off a menu, and **what to pour** from your cabi
    missed. It runs **only when you submit a pairing** (never on load or while typing),
    needs a signed-in session, and fails soft to layer 1.
 
+## Group tasting (`#/tasting`, unlinked)
+
+Hand out write access for an evening without handing out accounts. Signed in, open
+`#/tasting` and **start a tasting**: you get an 8-character code (`PEAT-7K2Q`) and a
+share link (`#/tasting/<code>`), good for **8 hours** or until you end it. Guests
+open the link (or type the code) with a name and can log tasting notes on any bottle
+on the shelf. That's all a code grants: no bottle edits, no note edits (theirs
+included), no recommendations or pairing. Guest notes carry the taster's name, show
+up on the bottle like any other, are embedded with Titan, and feed the recommender.
+
+- `POST /tastings` · `GET /tastings` · `DELETE /tastings/{code}` — host, Cognito-authed
+- `GET /tastings/{code}` · `POST /tastings/{code}/bottles/{id}/notes` — public; the
+  code in the path is the credential, checked per request (404 unknown, 410
+  ended/expired, 429 past 300 notes), and the routes are throttled at the stage
+- Stored as `PK=TASTING#<code>`, swept by DynamoDB TTL a day after expiry; notes
+  record the tasting's public id, never its code (`GET /notes` is public)
+
 Sibling to [interp](https://interp.zackwithers.com) and the
 [adversarial playground](https://playground.zackwithers.com) — same S3 + CloudFront +
 CDK + GitHub-Actions-OIDC deploy pattern as [fit](https://fit.zackwithers.com), plus a

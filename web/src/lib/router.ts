@@ -11,6 +11,8 @@
  *   #/add              -> add-bottle form (defaults to a cabinet type)
  *   #/add/coffee       -> add-bottle form (defaults to coffee)
  *   #/bottles/:id/edit -> edit-bottle form
+ *   #/tasting          -> group tasting (unlinked: host a code / join with one)
+ *   #/tasting/:code    -> the same, code prefilled (the link a host shares)
  */
 import { useEffect, useState } from 'react'
 import type { BeverageFamily } from './types'
@@ -25,6 +27,7 @@ export type Route =
   | { name: 'detail'; id: string }
   | { name: 'add'; family: BeverageFamily }
   | { name: 'edit'; id: string }
+  | { name: 'tasting'; code?: string }
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, '') || '/'
@@ -34,6 +37,11 @@ export function parseHash(hash: string): Route {
   if (parts[0] === 'coffee') return { name: 'list', family: 'coffee' }
   if (parts[0] === 'pair') return { name: 'pair' }
   if (parts[0] === 'account') return { name: 'account' }
+  if (parts[0] === 'tasting') {
+    return parts[1]
+      ? { name: 'tasting', code: decodeURIComponent(parts[1]) }
+      : { name: 'tasting' }
+  }
   if (parts[0] === 'add') {
     return { name: 'add', family: parts[1] === 'coffee' ? 'coffee' : 'alcohol' }
   }
@@ -76,4 +84,5 @@ export const href = {
   add: (family: BeverageFamily = 'alcohol') =>
     family === 'coffee' ? '#/add/coffee' : '#/add',
   edit: (id: string) => `#/bottles/${id}/edit`,
+  tasting: (code?: string) => (code ? `#/tasting/${code}` : '#/tasting'),
 }

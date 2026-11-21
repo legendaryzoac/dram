@@ -124,6 +124,45 @@ export interface TastingNote {
   createdAt: string
   /** Present once a note has been edited. */
   updatedAt?: string
+  /** The guest's name, on a note logged through a group tasting. Absent on
+   *  the owner's own notes. */
+  taster?: string
+  /** The group tasting it was logged at (its public id, never its code). */
+  tastingId?: string
+}
+
+/**
+ * Group tasting: the owner opens one and gets a short code that is good for
+ * TASTING_TTL_HOURS. Anyone holding the code can log notes against the
+ * cabinet's bottles without an account — and nothing else: no bottle edits,
+ * no deletes, no note edits.
+ */
+export const TASTING_TTL_HOURS = 8
+/** Ceiling on guest notes per tasting, so a leaked code isn't an open tap. */
+export const TASTING_MAX_NOTES = 300
+export const TASTING_LIMITS = { label: 60, taster: 40 } as const
+
+export type TastingStatus = 'live' | 'ended' | 'expired'
+
+/** A tasting as its host sees it (GET/POST /tastings). */
+export interface Tasting {
+  /** Public id — what guest notes carry. */
+  id: string
+  /** The secret guests type in: 8 characters, shown as XXXX-XXXX. */
+  code: string
+  label: string
+  createdAt: string
+  expiresAt: string
+  endedAt?: string
+  status: TastingStatus
+  noteCount: number
+}
+
+/** What a code unlocks for a guest (GET /tastings/{code}) — no owner data. */
+export interface TastingInvite {
+  id: string
+  label: string
+  expiresAt: string
 }
 
 export interface Recommendation {
@@ -231,4 +270,27 @@ export interface NoteItem {
   authorSub?: string
   /** Titan text embedding of nose+palate+finish. Stored, never returned. */
   embedding?: number[]
+  /** Guest name, on notes logged through a group tasting. */
+  taster?: string
+  /** Public id of that tasting. */
+  tastingId?: string
+}
+
+/** DynamoDB item for a group tasting: PK=TASTING#<code>, SK=META. Keyed by
+ *  the code so a guest's request is one GetItem; `ttl` lets DynamoDB sweep
+ *  the row a day after it expires. */
+export interface TastingItem {
+  pk: string
+  sk: 'META'
+  type: 'tasting'
+  id: string
+  code: string
+  label: string
+  ownerSub: string
+  createdAt: string
+  expiresAt: string
+  endedAt?: string
+  noteCount: number
+  /** Epoch seconds — the table's TTL attribute. */
+  ttl: number
 }

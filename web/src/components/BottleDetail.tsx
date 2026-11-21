@@ -264,7 +264,8 @@ export default function BottleDetail({ id, onRequireAuth }: Props) {
                       note={note}
                       coffee={coffee}
                       labels={noteLabels}
-                      canEdit={Boolean(token)}
+                      // A guest's note (group tasting) is theirs as written.
+                      canEdit={Boolean(token) && !note.taster}
                       onEdit={() => startEditing(note.id)}
                     />
                   )}
@@ -305,6 +306,11 @@ function NoteView({
       <div className="mb-2 flex items-center justify-between gap-3">
         <span className="flex items-baseline gap-2">
           <span className="text-warm font-mono text-sm">{note.rating}/10</span>
+          {note.taster && (
+            <span className="text-muted font-mono text-xs">
+              {note.taster} · group tasting
+            </span>
+          )}
           {note.updatedAt && (
             <span className="text-muted font-mono text-[0.65rem] opacity-70">
               edited

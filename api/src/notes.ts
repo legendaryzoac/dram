@@ -75,7 +75,7 @@ function parseBrew(v: unknown): NoteBrew | null | undefined {
   return Object.keys(out).length > 0 ? out : undefined
 }
 
-function parseBody(event: APIGatewayProxyEventV2): unknown {
+export function parseBody(event: APIGatewayProxyEventV2): unknown {
   const raw = event.isBase64Encoded
     ? Buffer.from(event.body ?? '', 'base64').toString('utf8')
     : (event.body ?? '')
@@ -87,7 +87,7 @@ function parseBody(event: APIGatewayProxyEventV2): unknown {
   }
 }
 
-interface ParsedNote {
+export interface ParsedNote {
   nose: string
   palate: string
   finish: string
@@ -97,7 +97,7 @@ interface ParsedNote {
 }
 
 /** Shared body validation for note create + edit. Null => 400. */
-function parseNoteBody(event: APIGatewayProxyEventV2): ParsedNote | null {
+export function parseNoteBody(event: APIGatewayProxyEventV2): ParsedNote | null {
   const raw = parseBody(event)
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
@@ -124,7 +124,7 @@ function parseNoteBody(event: APIGatewayProxyEventV2): ParsedNote | null {
 }
 
 /** Titan embedding of the prose, fail-soft: undefined when Bedrock is out. */
-async function embedNote(parsed: ParsedNote): Promise<number[] | undefined> {
+export async function embedNote(parsed: ParsedNote): Promise<number[] | undefined> {
   const input = `${parsed.nose}\n${parsed.palate}\n${parsed.finish}`.trim()
   if (input.length === 0) return undefined
   try {
@@ -138,11 +138,6 @@ async function embedNote(parsed: ParsedNote): Promise<number[] | undefined> {
 }
 
 /**
- * POST /bottles/{id}/notes (auth) -> TastingNote.
- * Computes and stores a Titan embedding of nose+palate+finish synchronously,
- * and records the caller as the note's author for later edit checks.
- */
-/**
  * GET /notes — every tasting note in the corpus, newest first: the hub's one
  * read for the drinker's whole history (a public read, like the bottles).
  */
@@ -154,6 +149,11 @@ export async function handleListNotes(
   return json(200, all, origin)
 }
 
+/**
+ * POST /bottles/{id}/notes (auth) -> TastingNote.
+ * Computes and stores a Titan embedding of nose+palate+finish synchronously,
+ * and records the caller as the note's author for later edit checks.
+ */
 export async function handleCreateNote(
   bottleId: string,
   event: APIGatewayProxyEventV2,
@@ -208,6 +208,8 @@ export async function handleUpdateNote(
   const existing = notes.find((n) => n.id === noteId)
   if (!existing) return json(404, { error: 'note not found' }, origin)
 
+  // A guest's note (logged through a tasting) has a synthetic author no
+  // Cognito user matches, so it stays as the guest wrote it.
   if (existing.authorSub && existing.authorSub !== editorSub) {
     return json(403, { error: 'you can only edit your own notes' }, origin)
   }

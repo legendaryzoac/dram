@@ -198,6 +198,42 @@ export interface TastingNote {
   createdAt: string
   /** Present once a note has been edited. */
   updatedAt?: string
+  /** The guest's name, on a note logged through a group tasting. */
+  taster?: string
+  /** The group tasting it was logged at (public id, never the code). */
+  tastingId?: string
+}
+
+/** Group tasting — mirrors api/src/types.ts. A code is good for this long. */
+export const TASTING_TTL_HOURS = 8
+export const TASTING_LIMITS = { label: 60, taster: 40 } as const
+
+export type TastingStatus = 'live' | 'ended' | 'expired'
+
+/** A tasting as its host sees it. */
+export interface Tasting {
+  id: string
+  /** 8 characters; shown as XXXX-XXXX. */
+  code: string
+  label: string
+  createdAt: string
+  expiresAt: string
+  endedAt?: string
+  status: TastingStatus
+  noteCount: number
+}
+
+/** What a code unlocks for a guest. */
+export interface TastingInvite {
+  id: string
+  label: string
+  expiresAt: string
+}
+
+/** "PEAT7K2Q" -> "PEAT-7K2Q" */
+export function formatCode(code: string): string {
+  const c = code.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c
 }
 
 export interface Recommendation {

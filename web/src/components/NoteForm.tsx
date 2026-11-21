@@ -39,6 +39,9 @@ interface Props {
   editNote?: TastingNote
   /** Select-or-type options for the brew fields (from gear already used). */
   brewSuggestions?: BrewSuggestions
+  /** Save through this instead of the signed-in API — the group-tasting
+   *  guest path, which has a code rather than a token. */
+  submitNote?: (input: NewNoteInput) => Promise<unknown>
   onSaved: () => void
   onCancel: () => void
 }
@@ -48,6 +51,7 @@ export default function NoteForm({
   bottleType,
   editNote,
   brewSuggestions,
+  submitNote,
   onSaved,
   onCancel,
 }: Props) {
@@ -89,7 +93,7 @@ export default function NoteForm({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!token) return
+    if (!token && !submitNote) return
     setBusy(true)
     setError(null)
     const input: NewNoteInput = {
@@ -102,7 +106,9 @@ export default function NoteForm({
     }
     try {
       const api = getApi()
-      if (editNote) await api.updateNote(bottleId, editNote.id, input, token)
+      if (submitNote) await submitNote(input)
+      else if (!token) return
+      else if (editNote) await api.updateNote(bottleId, editNote.id, input, token)
       else await api.addNote(bottleId, input, token)
       onSaved()
     } catch (err) {

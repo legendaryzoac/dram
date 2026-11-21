@@ -6,6 +6,7 @@ import BottleDetail from './components/BottleDetail'
 import BottleForm from './components/BottleForm'
 import AccountPage from './components/AccountPage'
 import PairingPage from './components/PairingPage'
+import TastingPage from './components/TastingPage'
 import AuthModal from './components/AuthModal'
 import { AuthProvider } from './components/AuthContext'
 import { useRoute } from './lib/router'
@@ -33,6 +34,9 @@ function Routed({ onRequireAuth }: { onRequireAuth: () => void }) {
       return <PairingPage onRequireAuth={onRequireAuth} />
     case 'account':
       return <AccountPage onRequireAuth={onRequireAuth} />
+    // Deliberately absent from the nav: reached by the link a host shares.
+    case 'tasting':
+      return <TastingPage initialCode={route.code} onRequireAuth={onRequireAuth} />
     case 'list':
     default:
       // Keyed by family so hopping between the cabinet and the coffee bar
