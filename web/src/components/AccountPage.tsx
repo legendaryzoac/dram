@@ -1,7 +1,7 @@
 /**
  * Account hub (route `#/account`, reached from the footer's "account" link).
  * Signed out it's a sign-in prompt; signed in it shows:
- *   - who's signed in + sign out,
+ *   - who's signed in + sign out, and the way in to group tastings,
  *   - corpus stats (what's on the shelf, what's finished or was only tasted
  *     elsewhere, notes, average rating),
  *   - the drinker's aggregate palate on the radar,
@@ -127,12 +127,22 @@ export default function AccountPage({ onRequireAuth }: Props) {
             {mode === 'demo' ? 'demo mode' : email}
           </p>
         </div>
-        <button
-          className={`${ghostButtonClass} px-3 py-1.5 text-sm`}
-          onClick={signOut}
-        >
-          Sign out
-        </button>
+        <div className="flex gap-2">
+          {/* The only way in to group tastings from inside the app — the
+              route stays out of the nav, but an installed PWA has no URL bar. */}
+          <button
+            className={`${buttonClass} px-3 py-1.5 text-sm`}
+            onClick={() => navigate(href.tasting())}
+          >
+            Group tasting
+          </button>
+          <button
+            className={`${ghostButtonClass} px-3 py-1.5 text-sm`}
+            onClick={signOut}
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       {/* Three groups of facts. On a wide screen they share a line; on a
